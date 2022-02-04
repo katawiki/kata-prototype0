@@ -26,6 +26,7 @@ SRC_C       += $(wildcard src/types/*.c)
 SRC_C       += $(wildcard src/sys/*.c)
 SRC_C       += $(wildcard src/mem/*.c)
 SRC_C       += $(wildcard src/io/*.c)
+SRC_C       += $(wildcard src/bf/*.c)
 
 # C headers
 SRC_H       := $(wildcard include/kata/*.h)
@@ -144,7 +145,7 @@ bin/test/%: test/%.unix.o lib/libkata.so
 
 # run a test
 bin/test/%.test: bin/test/%
-	@echo "------------------------------" && echo "- TEST: ./$@" && echo "------------------------------" && ./$< && echo $(GRN)PASS: ./\$@$(RST) && echo "" || (echo && echo $(RED)$(BOLD)FAIL: ./\$@$(RST) && echo "" && exit 1)
+	@echo $(BLU)"TEST: ./$@"$(RST) && ./$<&& echo $(GRN)PASS: ./\$@$(RST) && echo "" || (echo $(RED)$(BOLD)FAIL: ./\$@$(RST) && echo "" && exit 1)
 
 .PHONY: all test clean %.test
 

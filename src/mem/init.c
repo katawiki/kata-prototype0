@@ -18,12 +18,12 @@ kmem_make(usize sz) {
 
 KATA_API bool
 kmem_grow(void** pptr, usize sz) {
+    // always has enough for 0 bytes
+    if (!sz) return true;
     if (!*pptr) {
-        if (!sz) return true;
         *pptr = kmem_make(sz);
         return *pptr != NULL;
     }
-
     // use C library, and check return... this should behave
     //   like this on WASM at least
     void* newptr = realloc(*pptr, sz);

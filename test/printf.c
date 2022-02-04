@@ -9,6 +9,9 @@
 int main(int argc, char** argv) {
     kinit(true);
 
+    assert(kprintf(Ksys_stdout, "basic floats:\n  0.0=%f\n  1.0=%f\n  -1.0=%f\n  1.2345=%f\n  -1.2345=%f\n", 0.0, 1.0, -1.0, 1.2345, -1.2345) >= 0);
+    assert(kprintf(Ksys_stdout, "constants:\n  tau=%f\n  pi=%f\n  e=%f\n  ln(2)=%f\n  ln(10)=%f\n", F64_TAU, F64_PI, F64_E, F64_LN2, F64_LN10) >= 0);
+
     kstr xyz = kstr_new(3, "xyz");
     assert(xyz != NULL);
     assert(xyz->lenb == 3);
@@ -18,6 +21,13 @@ int main(int argc, char** argv) {
 
     assert(kprintf(Ksys_stdout, "hello, world: %S\n", (kobj)xyz) >= 0);
     KOBJ_DECREF(xyz);
+
+    kint x = kint_new("11234128364921612387642197642917542795492144264912653423", 10);
+    assert(x != NULL);
+    assert(kprintf(Ksys_stdout, "x: %R\n", (kobj)x) >= 0);
+    KOBJ_DECREF(x);
+
+
 
     return 0;
 }

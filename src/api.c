@@ -5,9 +5,28 @@
 
 #include <kata/impl.h>
 
+bf_context_t
+Kbf_ctx;
+
+// internal allocation function for libbf
+static void*
+Kbf_ctx_realloc_(void *opaque, void *ptr, size_t sz) {
+    void* res = ptr;
+    if (!kmem_grow(&res, sz)){ 
+        fprintf(stderr, "libbf: out of memory\n");
+        kexit(KENO_ERR_OOM);
+        return NULL;
+    }
+    return res;
+}
+
+
 KATA_API keno
 kinit(bool fail_on_err) {
+    Kint->sz = sizeof(struct kint);
     Ksys_rawio->sz = sizeof(struct ksys_rawio);
+
+    bf_context_init(&Kbf_ctx, Kbf_ctx_realloc_, NULL);
 
     kinit_sys();
     kinit_io();
@@ -60,6 +79,33 @@ kobj_free(kobj obj) {
         // use default delete, which is to delete the memory
         kmem_free(KOBJ_META(obj));
     }
+}
+
+KATA_API keno
+kobj_getu(kobj obj, u64* out) {
+    ktype tp = KOBJ_TYPE(obj);
+    if (tp == Kint) {
+
+    } else {
+        
+    }
+
+
+}
+
+KATA_API keno
+kobj_gets(kobj obj, s64* out) {
+
+}
+
+KATA_API keno
+kobj_getf(kobj obj, f64* out) {
+
+}
+
+KATA_API keno
+kobj_getc(kobj obj, f64* outre, f64* outim) {
+
 }
 
 
@@ -257,12 +303,12 @@ kprintfv(kobj io, const char* fmt, va_list args) {
                 if (sz < 0) return sz;
                 rsz += sz;
             } else if (c == 's') {
-                u64 val = va_arg(args, s64);
+                s64 val = va_arg(args, s64);
                 sz = kio_bufio_writes64(&bio, val, 10, width);
                 if (sz < 0) return sz;
                 rsz += sz;
             } else if (c == 'f') {
-                u64 val = va_arg(args, f64);
+                f64 val = va_arg(args, f64);
                 sz = kio_bufio_writef64(&bio, val, 10, width, prec);
                 if (sz < 0) return sz;
                 rsz += sz;

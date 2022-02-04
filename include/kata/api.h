@@ -29,6 +29,8 @@
 #include <string.h>
 
 #include <unistd.h>
+#include <limits.h>
+#include <float.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,10 +93,21 @@ typedef int64_t        s64;
 #define S64_MAX        INT64_MAX
 
 
+
+
 // floating point types
 typedef float          f32;
 typedef double         f64;
 
+#define F32_DIG        FLT_DIG
+#define F64_DIG        DBL_DIG
+
+// math constants
+#define F64_TAU        6.2831853071795864769252867665590057683943387987502116419498891846156328125724179972560696506842341359
+#define F64_PI         3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679
+#define F64_E          2.7182818284590452353602874713526624977572470936999595749669676277240766303535475945713821785251664274
+#define F64_LN2        0.69314718055994530941723212145817656807550013436025525412068000949339362196969471560586332699641868754
+#define F64_LN10       2.302585092994045684017991454684364207601101488628772976033327900967572609677352480235997205089598298
 
 // set configuration depending on platform settings
 #if KATA_BITS == 16
@@ -111,8 +124,8 @@ typedef double         f64;
 #endif
 
 
-// Kata error code
-typedef enum {
+// Kata error code (see 'keno' typedef)
+enum {
 
     // success/no error
     KENO_OK = 0,
@@ -123,7 +136,11 @@ typedef enum {
     // out of memory (OOM)
     KENO_ERR_OOM = -20,
 
-} keno;
+};
+
+// Kata error code type
+// (see 'KENO_*')
+typedef ssize          keno;
 
 
 /// Kata Types ///
@@ -163,7 +180,7 @@ typedef void*          kobj;
 typedef struct kint {
 
     // numeric data, via libbf
-    bf_t num;
+    bf_t val;
 
 }* kint;
 
@@ -172,7 +189,7 @@ typedef struct kint {
 typedef struct kfloat {
 
     // numeric data, via libbf
-    bf_t num;
+    bf_t val;
 
 }* kfloat;
 
@@ -313,6 +330,16 @@ typedef struct kdict {
 
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+// make a new integer with the given value
+KATA_API kint
+kint_new(const char* val, s32 base);
+KATA_API kint
+kint_newu(u64 val);
+KATA_API kint
+kint_news(s64 val);
+
 
 // make a new str (or return an interned one)
 // NOTE: pass 'lenb=-1' to indicate that the string is NUL-terminated
@@ -601,7 +628,7 @@ kthread_pop_frame(struct kthread* obj);
 
 // globals, which start with 'K' (capital)
 
-extern ktype
+KATA_API ktype
 Kint,
 Kfloat,
 Kstr,
@@ -617,6 +644,11 @@ Kfunc,
 Ktype,
 Kthread
 ;
+
+// context for all of libbf
+KATA_API bf_context_t
+Kbf_ctx;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -641,6 +673,19 @@ kobj_alloc(ktype tp);
 // NOTE: do not call this directly, use 'KOBJ_DECREF()' instead
 KATA_API void
 kobj_free(kobj obj);
+
+// get the value of an object converted to a particular C-style value
+// NOTE: returns 0 on success, <0 on failure, and >0 with metadata
+KATA_API keno
+kobj_getu(kobj obj, u64* out);
+KATA_API keno
+kobj_gets(kobj obj, s64* out);
+KATA_API keno
+kobj_getf(kobj obj, f64* out);
+KATA_API keno
+kobj_getc(kobj obj, f64* outre, f64* outim); // complex numbers
+
+
 
 // call 'fn(*args)', return a reference to the result or NULL if an exception
 //   was thrown

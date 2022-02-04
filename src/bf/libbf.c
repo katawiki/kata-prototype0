@@ -21,6 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#include <kata/libbf.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <inttypes.h>
@@ -33,7 +36,9 @@
 #endif
 
 #include "cutils.h"
-#include "libbf.h"
+
+// see top of file
+//#include "libbf.h"
 
 /* enable it to check the multiplication result */
 //#define USE_MUL_CHECK
