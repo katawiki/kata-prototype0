@@ -13,7 +13,7 @@ struct ktype Ksys_rawio_, *Ksys_rawio = &Ksys_rawio_;
 
 KATA_API ksys_rawio
 ksys_rawio_newd(s32 fd_) {
-    ksys_rawio obj = kobj_alloc(Ksys_rawio);
+    ksys_rawio obj = kobj_make(Ksys_rawio);
     if (!obj) return NULL;
 
     // set the properties

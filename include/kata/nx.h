@@ -62,7 +62,6 @@ enum {
 
 };
 
-
 // datatype structure, which describes a particular kind of data
 typedef struct nx_dtype {
 
@@ -78,23 +77,6 @@ typedef struct nx_dtype {
     ssize sz;
 
 }* nx_dtype;
-
-
-// environment object, which is basically an execution context but it can be
-//   on other hardware, such as a GPU/TPU/accelerator
-// TODO: FPGA support?
-typedef struct nx_env {
-    
-    // the printable/referable name of the environment
-    kstr name;
-
-
-
-}* nx_env;
-
-typedef struct nx_arena {
-
-}* nx_arena;
 
 
 // NumeriX tensor handle
@@ -121,7 +103,8 @@ typedef struct nx_tensor {
 
 // global types
 KATA_API ktype
-Kio_bufio
+Nx_tensor,
+Nx_dtype
 ;
 
 

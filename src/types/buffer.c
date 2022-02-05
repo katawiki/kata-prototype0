@@ -9,12 +9,11 @@
 
 /// C API ///
 
-struct ktype Kbuffer_, *Kbuffer = &Kbuffer_;
-
+KTYPE_DECL(Kbuffer);
 
 KATA_API kbuffer
 kbuffer_new(usize len, const u8* data) {
-    kbuffer obj = kobj_alloc(Kbuffer);
+    kbuffer obj = kobj_make(Kbuffer);
     if (!obj) return NULL;
 
     if (kbuffer_init(obj, len, data) < 0) {

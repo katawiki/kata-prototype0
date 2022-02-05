@@ -110,14 +110,14 @@ OBJ_O       := $(patsubst %.c,%.unix.o,$(SRC_C))
 TEST_O      := $(patsubst %.c,%.unix.o,$(TEST_C))
 
 TEST_BINS   := $(patsubst %.c,bin/%,$(TEST_C))
-TEST_TESTS  := $(patsubst %.c,bin/%.test,$(TEST_C))
+TEST_RUNS   := $(patsubst %.c,bin/%.run,$(TEST_C))
 
 
 ### Targets ###
 
 all: bin/ks lib/libkata.so
 
-test: $(TEST_BINS) $(TEST_TESTS)
+test: $(TEST_BINS) $(TEST_RUNS)
 
 clean:
 	rm -f $(wildcard bin/ks)
@@ -144,10 +144,10 @@ bin/test/%: test/%.unix.o lib/libkata.so
 		'-Wl,-rpath,$$ORIGIN/../../lib'
 
 # run a test
-bin/test/%.test: bin/test/%
+bin/test/%.run: bin/test/%
 	@echo $(BLU)"TEST: ./$@"$(RST) && ./$<&& echo $(GRN)PASS: ./\$@$(RST) && echo "" || (echo $(RED)$(BOLD)FAIL: ./\$@$(RST) && echo "" && exit 1)
 
-.PHONY: all test clean %.test
+.PHONY: all test clean
 
 
 ### Rules ###

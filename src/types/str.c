@@ -8,7 +8,7 @@
 
 /// C API ///
 
-struct ktype Kstr_, *Kstr = &Kstr_;
+KTYPE_DECL(Kstr);
 
 KATA_API kstr
 kstr_new(ssize lenb, const char* data) {

@@ -63,3 +63,8 @@ kmem_hash(usize len, const u8* data) {
     }
     return res;
 }
+
+KATA_API void
+kinit_mem() {
+
+}

@@ -32,6 +32,10 @@
 #include <limits.h>
 #include <float.h>
 
+
+#include <math.h>
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Kata Config ///
@@ -102,12 +106,17 @@ typedef double         f64;
 #define F32_DIG        FLT_DIG
 #define F64_DIG        DBL_DIG
 
+#define F64_INF        INFINITY
+#define F64_NAN        NAN
+
 // math constants
 #define F64_TAU        6.2831853071795864769252867665590057683943387987502116419498891846156328125724179972560696506842341359
 #define F64_PI         3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679
 #define F64_E          2.7182818284590452353602874713526624977572470936999595749669676277240766303535475945713821785251664274
 #define F64_LN2        0.69314718055994530941723212145817656807550013436025525412068000949339362196969471560586332699641868754
 #define F64_LN10       2.302585092994045684017991454684364207601101488628772976033327900967572609677352480235997205089598298
+
+
 
 // set configuration depending on platform settings
 #if KATA_BITS == 16
@@ -371,6 +380,11 @@ kbuffer_pop(struct kbuffer* obj, usize len);
 KATA_API klist
 klist_new(usize len, kobj* data);
 
+// make new list, absorbing references from 'data'
+KATA_API klist
+klist_newz(usize len, kobj* data);
+
+
 // init list struct with a length and array of objects
 // NOTE: 'data' must be legal objects
 KATA_API keno
@@ -387,6 +401,10 @@ klist_push(struct klist* obj, kobj val);
 // push 'vals' to the end of the list
 KATA_API keno
 klist_pushn(struct klist* obj, usize len, kobj* vals);
+// push 'vals' to the end of the list, absorbing references
+KATA_API keno
+klist_pushz(struct klist* obj, usize len, kobj* vals);
+
 
 // pop an object from the end of the list
 KATA_API kobj
@@ -445,6 +463,7 @@ enum {
     KFUNC_NONE   = 0x00,
 
     // C-style function being wrapped
+    // TODO: differentiate from FFI functions?
     KFUNC_CFUNC  = 0x01,
 
     // KataBC (bytecode) function
@@ -452,8 +471,22 @@ enum {
 
 };
 
+// function parameters for a C-style function
+// NOTE: you should always use the macro, and not rely on this!
+#define KCFUNC_PARAMS kobj kfn, s32 nargs, kobj* vargs
+
+// C-style function type
+typedef kobj (*kcfunc)(KCFUNC_PARAMS);
+
 // callable first-class function type
 typedef struct kfunc {
+
+    // the global name of the function
+    // TODO: should C functions be in namespace 'c.name_of_symbol'?
+    kstr name;
+
+    // documentation string
+    kstr docs;
 
     // the kind of funct
     kobj fn;
@@ -463,13 +496,7 @@ typedef struct kfunc {
     u32 kind;
 
     // if 'kind & KFUNC_CFUNC'
-    struct {
-
-        // function pointer
-        // TODO: record callable signature/FFI?
-        void (*fn)();
-
-    } cfunc_;
+    kcfunc cfunc_;
 
     // if 'kind & KFUNC_BFUNC'
     struct {
@@ -488,6 +515,10 @@ typedef struct kfunc {
 
 }* kfunc;
 
+// make a new C-style function wrapper
+KATA_API kobj
+kfunc_new(kcfunc cfunc, const char* name, const char* docs);
+
 // Kata type, which is like a type/class/struct in other languages, it defines
 //   a datatype and associated functions/attributes/methods for that type
 // TODO: differentiate 
@@ -498,6 +529,9 @@ typedef struct ktype {
     // name of the type
     kstr name;
 
+    // documentation string
+    kstr docs;
+
     // the size of the type, which can be one of:
     //   like int: the size, in bytes of a single element (for statically sized types)
     //   like (obj)->int: a function that returns the size, in bytes for a given object
@@ -507,51 +541,50 @@ typedef struct ktype {
 
     /// Type Functions ///
 
-    /// Lifetime Functions: new/init/done/del ///
+    /// Lifetime Functions: init/done and new/del ///
     //
-    // this is a simple explanation of object lifetimes within Kata, and how these
-    //   type functions should be defined. The functions are located on the C-style
-    //   type structure as 'fn_new', 'fn_init', etc...
+    // this is a simple explanation of how objects are managed in Kata, and how
+    //   library authors should use them. generally, for best performance, the
+    //   memory management functions should be implemented in C, JIT compiled, or
+    //   otherwise optimized (since they run so many times)
     //
-    // when an object is allocated (for example, by calling a type as a constructor),
-    //   the 'fn_new' function is called with the type as the first argument and the
-    //   rest of the arguments being relayed (i.e. 'tp(1, 2, 3)' becomes 'tp.__new(tp, 1, 2, 3)')
-    //   that function should return an object reference. if 'fn_init' is NULL, then
-    //   the new function should also initialize the data. otherwise, the 'fn_init'
-    //   is also called. if the 'fn_new' function is NULL, then a default allocation
-    //   function is used (i.e. just allocate memory, set metadata and return that)
+    // new/del are the functions used to create a new object and delete it,
+    //   once the object is unreachable. these may internally call other functions
+    //   to delete specific resources for that type
     //
-    // if the type has an 'fn_init' that is valid (i.e. non-NULL), then it is called
-    //   with the type and new instance as the first arguments (i.e. 'tp.__init(tp, <newobj>, 1, 2, 3)')
-    //
-    // when an object is destroyed (for example, a local variable going out of scope,
-    //   a reference count dropping to zero, or a C-style variable destructed),
-    //   the 'fn_done' function is called, which should free any resources associated
-    //   with the object. if 'fn_done' is NULL, then nothing is done
-    //
-    // if the object is dynamically allocated (as most are), then the 'fn_del' function
-    //   is ran on the type and object. if NULL, then a default de-allocation function is used.
+    // init/done are used to initialize and finalize an object, and are called
+    //   on stack allocated (or flatbuffer allocated, arena allocated, etc) instances. 
+    //   these functions should NOT free the pointer that the object is stored at
     //
 
     // <type>.__new(tp, *args)-><type>
     //   allocation function that takes
-    kobj fn_new;
+
+    // <type>.__del(tp, obj)->void
+    //   deallocation function that deletes the object itself
+
+    kobj fn_new, fn_del;
+
 
     // <type>.__init(tp, obj, *args)->void
     //   initialization function that takes an allocated (but undefined) address of
     //   an object and initializes according to the arguments given
     // NOTE: may be NULL, if the type only uses 'fn_new' or doesn't need to be initialized
-    kobj fn_init;
 
     // <type>.__done(tp, obj)->void
     //   deinitialization function that clears out any memory/references associated with 'obj'
-    kobj fn_done;
 
-    // <type>.__del(tp, obj)->void
-    //   deallocation function that deletes the object itself
-    kobj fn_del;
+    kobj fn_init, fn_done;
 
 }* ktype;
+
+// helper macro to declare a statically allocated type
+#define KTYPE_DECL(name_) static u8 name_##_[sizeof(struct kobj_meta) + sizeof(struct ktype)]; \
+    ktype name_ = (ktype)(name_##_ + sizeof(struct kobj_meta)); \
+
+// initialize a type with the given information
+KATA_API void
+ktype_init(ktype tp, s32 sz, const char* name, const char* docs);
 
 // meta data structucture stored before an object in memory
 struct kobj_meta {
@@ -665,9 +698,10 @@ kinit(bool fail_on_err);
 KATA_API void
 kexit(keno rc);
 
-// allocate an object, and initialize its meta for a given type
+// make an empty object, and initialize its meta for a given type
+// NOTE: the resulting object will be uninitialized (the metadata will be, though)
 KATA_API kobj
-kobj_alloc(ktype tp);
+kobj_make(ktype tp);
 
 // free an object, according to its type constructor
 // NOTE: do not call this directly, use 'KOBJ_DECREF()' instead
@@ -686,21 +720,43 @@ KATA_API keno
 kobj_getc(kobj obj, f64* outre, f64* outim); // complex numbers
 
 
-
 // call 'fn(*args)', return a reference to the result or NULL if an exception
 //   was thrown
 KATA_API kobj
 kcall(kobj fn, usize nargs, kobj* args);
 
+// quick call, which may be optimized with short circuiting paths when
+//   debugging is not important
+KATA_API kobj
+kqcall(kobj fn, usize nargs, kobj* args);
+
 // read a sequence of bytes from a IO-like object
 // NOTE: number of characters read returned, or <0 on error
 KATA_API ssize
-kread(kobj io, usize len, u8* data);
+kread(kobj io, usize len, void* data);
 
 // write a sequence of bytes to a IO-like object
 // NOTE: number of characters written returned, or <0 on error
 KATA_API ssize
-kwrite(kobj io, usize len, const u8* data);
+kwrite(kobj io, usize len, const void* data);
+
+
+// writing some primitive datatypes to an 'io'
+KATA_API ssize
+kwriteu(kobj io, u64 val, s8 base, s32 width);
+KATA_API ssize
+kwrites(kobj io, s64 val, s8 base, s32 width);
+KATA_API ssize
+kwritef(kobj io, f64 val, s8 base, s32 width, s32 prec);
+
+// writing different serialization formats of 'obj' to 'io'
+// for example, %B, %S, %R
+KATA_API ssize
+kwriteB(kobj io, kobj obj);
+KATA_API ssize
+kwriteS(kobj io, kobj obj);
+KATA_API ssize
+kwriteR(kobj io, kobj obj);
 
 // do a C-style printf to an IO-like object, where the following are respected:
 //   %u: u64 value
@@ -721,8 +777,6 @@ kprintfv(kobj io, const char* fmt, va_list args);
 // standard modules
 #include <kata/mem.h>
 #include <kata/sys.h>
-#include <kata/io.h>
-
 
 
 #endif // KATA_API_H

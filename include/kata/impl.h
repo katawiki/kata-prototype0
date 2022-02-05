@@ -16,15 +16,16 @@
 #endif
 
 
+KATA_API void
+kinit_int();
+
 
 // module initializers
+KATA_API void
+kinit_mem();
 KATA_API void
 kinit_sys();
 KATA_API void
 kinit_sys_rawio();
-KATA_API void
-kinit_io();
-KATA_API void
-kinit_io_bufio();
 
 #endif // KATA_IMPL_H

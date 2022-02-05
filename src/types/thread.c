@@ -9,7 +9,7 @@
 
 /// C API ///
 
-struct ktype Kthread_, *Kkthread = &Kthread_;
+KTYPE_DECL(Kthread);
 
 KATA_API kthread
 kthread_get() {

@@ -9,29 +9,45 @@
 
 /// C API ///
 
-struct ktype Klist_, *Klist = &Klist_;
+KTYPE_DECL(Klist);
 
 KATA_API klist
 klist_new(usize len, kobj* data) {
-    struct kobj_meta* meta = kmem_make(sizeof(struct kobj_meta) + sizeof(struct klist));
-    if (!meta) return NULL;
-    klist obj = KOBJ_UNMETA(meta);
-
-    KOBJ_REFC(obj) = 1;
-    KOBJ_TYPE(obj) = Klist;
+    klist obj = kobj_make(Klist);
+    if (!obj) return NULL;
 
     if (klist_init(obj, len, data) < 0) {
         KOBJ_DECREF(obj);
         return NULL;
     }
 
-    if (!klist_pushn(obj, len, data)) {
+    if (klist_pushn(obj, len, data) < 0) {
         KOBJ_DECREF(obj);
         return NULL;
     }
 
     return obj;
 }
+
+KATA_API klist
+klist_newz(usize len, kobj* data) {
+    klist obj = kobj_make(Klist);
+    if (!obj) return NULL;
+
+    if (klist_init(obj, len, data) < 0) {
+        KOBJ_DECREF(obj);
+        return NULL;
+    }
+
+    if (klist_pushn(obj, len, data) < 0) {
+        KOBJ_DECREF(obj);
+        return NULL;
+    }
+
+    return obj;
+}
+
+
 
 KATA_API keno
 klist_init(struct klist* obj, usize len, kobj* data) {
@@ -57,6 +73,20 @@ klist_push(struct klist* obj, kobj val) {
 
 KATA_API keno
 klist_pushn(struct klist* obj, usize len, kobj* vals) {
+    keno rc = klist_pushz(obj, len, vals);
+    if (rc < 0) return rc;
+
+    // add references
+    usize i;
+    for (i = 0; i < len; ++i) {
+        KOBJ_INCREF(vals[i]);
+    }
+
+    return rc;
+}
+
+KATA_API keno
+klist_pushz(struct klist* obj, usize len, kobj* vals) {
     if (obj->cap >= obj->len + len) {
         // we have enough space
         memcpy(obj->data + obj->len, vals, len * sizeof(kobj));
@@ -69,11 +99,11 @@ klist_pushn(struct klist* obj, usize len, kobj* vals) {
         return -1;
     }
 
-    // add to the array
+    // add to the array, but don't add reference
     usize i;
     for (i = 0; i < len; ++i) {
         obj->data[obj->len + i] = vals[i];
-        KOBJ_INCREF(vals[i]);
+        //KOBJ_INCREF(vals[i]);
     }
 
     return 0;

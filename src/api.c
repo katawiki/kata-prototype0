@@ -5,6 +5,11 @@
 
 #include <kata/impl.h>
 
+
+// digit string for integer to string conversions
+static const char* digits = "0123456789ABCDEF";
+
+
 bf_context_t
 Kbf_ctx;
 
@@ -24,12 +29,13 @@ Kbf_ctx_realloc_(void *opaque, void *ptr, size_t sz) {
 KATA_API keno
 kinit(bool fail_on_err) {
     Kint->sz = sizeof(struct kint);
+    Klist->sz = sizeof(struct klist);
     Ksys_rawio->sz = sizeof(struct ksys_rawio);
 
     bf_context_init(&Kbf_ctx, Kbf_ctx_realloc_, NULL);
 
+    kinit_mem();
     kinit_sys();
-    kinit_io();
 
     return true;
 }
@@ -46,7 +52,7 @@ kexit(keno rc) {
 }
 
 KATA_API kobj
-kobj_alloc(ktype tp) {
+kobj_make(ktype tp) {
     assert(tp != NULL);
     struct kobj_meta* meta = kmem_make(sizeof(struct kobj_meta) + tp->sz);
     if (!meta) return NULL;
@@ -123,13 +129,28 @@ kcall(kobj fn, usize nargs, kobj* args) {
     // run the function, depending on the type
     // NOTE: these are some hard-coded common cases
     ktype tp = KOBJ_TYPE(fn);
+    kobj res = NULL;
     if (tp == Kfunc) {
-
+        kfunc kfn = (kfunc)fn;
+        if (kfn->kind & KFUNC_CFUNC) {
+            res = kfn->cfunc_(kfn, nargs, args);
+        } else {
+            kexit(-1);
+            return NULL;
+        }
     }
+
+    return res;
 }
 
+KATA_API kobj
+kqcall(kobj fn, usize nargs, kobj* args) {
+    return kcall(fn, nargs, args);
+}
+
+
 KATA_API ssize
-kread(kobj io, usize len, u8* data) {
+kread(kobj io, usize len, void* data) {
     ktype tp = KOBJ_TYPE(io);
     if (tp == Kbuffer) {
         // buffer read
@@ -159,7 +180,7 @@ kread(kobj io, usize len, u8* data) {
 }
 
 KATA_API ssize
-kwrite(kobj io, usize len, const u8* data) {
+kwrite(kobj io, usize len, const void* data) {
     ktype tp = KOBJ_TYPE(io);
     if (tp == Kbuffer) {
         // buffer read
@@ -192,6 +213,179 @@ kwrite(kobj io, usize len, const u8* data) {
         return rsz;
     } else {
         // TODO: throw error?
+        kexit(-1);
+        return -1;
+    }
+}
+
+KATA_API ssize
+kwriteu(kobj io, u64 val, s8 base, s32 width) {
+    assert(2 <= base && base <= 16);
+
+    // temporary buffer we populate up to 'i'
+    u8 tmp[100];
+    ssize i = 0;
+
+    // strip out any negative sign
+    bool is_neg = val < 0;
+    if (is_neg) tmp[i++] = '-';
+
+    // emit digits
+    do {
+        // calculate current digit
+        s32 cdig = val % base;
+        if (cdig < 0) cdig = -cdig;
+
+        // now, extract and emit digit
+        val /= base;
+        tmp[i++] = digits[cdig];
+    } while (val > 0);
+
+    // now, reverse buffer
+    ssize j, k;
+    for (j = is_neg?1:0, k = i-1; j < k; j++, k--) {
+        u8 t = tmp[j];
+        tmp[j] = tmp[k];
+        tmp[k] = t;
+    }
+
+    // TODO: zero pad
+    assert(width == 0);
+    return i;
+}
+
+KATA_API ssize
+kwrites(kobj io, s64 val, s8 base, s32 width) {
+    assert(2 <= base && base <= 16);
+
+    // temporary buffer we populate up to 'i'
+    u8 tmp[100];
+    ssize i = 0;
+
+    // strip out any negative sign
+    bool is_neg = val < 0;
+    if (is_neg) tmp[i++] = '-';
+
+    // emit digits
+    do {
+        // calculate current digit
+        s32 cdig = val % base;
+        if (cdig < 0) cdig = -cdig;
+
+        // now, extract and emit digit
+        val /= base;
+        tmp[i++] = digits[cdig];
+    } while (val > 0);
+
+    // now, reverse buffer
+    ssize j, k;
+    for (j = is_neg?1:0, k = i-1; j < k; j++, k--) {
+        u8 t = tmp[j];
+        tmp[j] = tmp[k];
+        tmp[k] = t;
+    }
+
+    // TODO: zero pad
+    assert(width == 0);
+    return i;
+}
+
+KATA_API ssize
+kwritef(kobj io, f64 val, s8 base, s32 width, s32 prec) {
+
+    // temporary buffer
+    char buf[100];
+    // TODO: solution without libc's snprintf?
+    size_t len = snprintf(buf, sizeof(buf), "%.*lf", (int)F64_DIG, (double)val);
+    assert(len < sizeof(buf) - 1);
+
+    // remove trailing zeros
+    // TODO: make more efficient
+    // TODO: this doesn't work with hex
+    while (len > 2 && buf[len-1] == '0') {
+        // inspect previous character before trailing zero
+        char c = buf[len-2];
+
+        // if is any valid digit
+        if ('0' <= c && c <= '9') {
+        } else if ('a' <= c && c <= 'f') {
+        } else if ('A' <= c && c <= 'F') {
+        } else {
+            // not a valid digit, so we can't continue striping them off
+            break;
+        }
+
+        len--;
+    }
+
+    assert(width == 0);
+    return kwrite(io, len, buf);
+}
+
+KATA_API ssize
+kwriteB(kobj io, kobj obj) {
+    ktype tp = KOBJ_TYPE(obj);
+    if (tp == Kstr) {
+        return kwrite(io, ((kstr)obj)->lenb, ((kstr)obj)->data);
+    } else {
+        // TODO
+        kexit(-1);
+        return -1;
+    }
+}
+
+KATA_API ssize
+kwriteS(kobj io, kobj obj) {
+    ktype tp = KOBJ_TYPE(obj);
+    if (tp == Kstr) {
+        return kwrite(io, ((kstr)obj)->lenb, ((kstr)obj)->data);
+    } else if (tp == Klist || tp == Kint) {
+        return kwriteR(io, obj);
+    } else {
+        // TODO
+        kexit(-1);
+        return -1;
+    }
+}
+
+KATA_API ssize
+kwriteR(kobj io, kobj obj) {
+    ktype tp = KOBJ_TYPE(obj);
+    if (tp == Kstr) {
+        return kwrite(io, ((kstr)obj)->lenb, ((kstr)obj)->data);
+    } else if (tp == Kint) {
+        // TODO: faster ways to dump?
+        size_t len;
+        char* data = bf_ftoa(&len, &((kint)obj)->val, 10, 0, BF_FTOA_FORMAT_FRAC);
+        return kwrite(io, len, data);
+    } else if (tp == Klist) {
+        // TODO: faster ways to dump?
+        ssize rsz = 0, sz = kwrite(io, 1, "[");
+        if (sz < 0) return sz;
+        rsz += sz;
+
+        // emit list children
+        klist l = (klist)obj;
+        usize i;
+        for (i = 0; i < l->len; ++i) {
+            if (i > 0) {
+                sz = kwrite(io, 2, ", ");
+                if (sz < 0) return sz;
+                rsz += sz;
+            }
+        
+            sz = kwriteR(io, l->data[i]);
+            if (sz < 0) return sz;
+            rsz += sz;
+        }
+
+        sz = kwrite(io, 1, "]");
+        if (sz < 0) return sz;
+        rsz += sz;
+        return rsz;
+    } else {
+        // TODO
+        kexit(-1);
         return -1;
     }
 }
@@ -205,22 +399,13 @@ kprintf(kobj io, const char* fmt, ...) {
     return res;
 }
 
-
-// buffer size to use internally
-#define KPRINTF_BUFSIZ 1024
-
 KATA_API ssize
 kprintfv(kobj io, const char* fmt, va_list args) {
     const char* ofmt = fmt;
     char c;
 
-    // buffer all output smaller than this
-    u8 buf[KPRINTF_BUFSIZ];
+    // total size and temp var
     ssize rsz = 0, sz;
-
-    // create temporary buffer to emit to
-    struct kio_bufio bio;
-    kio_bufio_init(&bio, io, KPRINTF_BUFSIZ, buf);
 
     while (*fmt) {
         // capture current format start
@@ -230,16 +415,15 @@ kprintfv(kobj io, const char* fmt, va_list args) {
         while (*fmt && *fmt != '%') fmt++;
 
         // attempt to write to buffered io
-        sz = kio_bufio_write(&bio, (usize)(fmt - cfmt), (const u8*)cfmt);
+        sz = kwrite(io, (usize)(fmt - cfmt), cfmt);
         if (sz < 0) return sz;
         rsz += sz;
-
 
         if (*fmt == '%') {
             // have a format specifier
             fmt++;
             // width and precision
-            s32 width = -1, prec = -1;
+            s32 width = 0, prec = 0;
             bool havePlus = false, haveMinus = false, haveSpace = false, haveZero = false;
 
             while ((c = *fmt) == '+' || c == '-' || c == ' ' || c == '0') {
@@ -294,65 +478,69 @@ kprintfv(kobj io, const char* fmt, va_list args) {
             
             if ((c = *fmt++) == '%') {
                 // literal '%' character
-                sz = kio_bufio_write(&bio, 1, (const u8*)"%");
+                sz = kwrite(io, 1, "%");
                 if (sz < 0) return sz;
                 rsz += sz;
             } else if (c == 'u') {
                 u64 val = va_arg(args, u64);
-                sz = kio_bufio_writeu64(&bio, val, 10, width);
+                sz = kwriteu(io, val, 10, width);
                 if (sz < 0) return sz;
                 rsz += sz;
             } else if (c == 's') {
                 s64 val = va_arg(args, s64);
-                sz = kio_bufio_writes64(&bio, val, 10, width);
+                sz = kwrites(io, val, 10, width);
                 if (sz < 0) return sz;
                 rsz += sz;
             } else if (c == 'f') {
                 f64 val = va_arg(args, f64);
-                sz = kio_bufio_writef64(&bio, val, 10, width, prec);
+                sz = kwritef(io, val, 10, width, prec);
                 if (sz < 0) return sz;
                 rsz += sz;
             } else if (c == 'O') {
                 kobj val = va_arg(args, void*);
                 ktype tp = KOBJ_TYPE(val);
 
-                sz = kio_bufio_write(&bio, 1, "<");
+                sz = kwrite(io, 1, "<");
                 if (sz < 0) return sz;
                 rsz += sz;
                 
-                sz = kio_bufio_write(&bio, tp->name->lenb, tp->name->data);
+                sz = kwrite(io, tp->name->lenb, tp->name->data);
                 if (sz < 0) return sz;
                 rsz += sz;
 
-                sz = kio_bufio_write(&bio, 5, " @ 0x");
+                sz = kwrite(io, 5, " @ 0x");
                 if (sz < 0) return sz;
                 rsz += sz;
 
-                sz = kio_bufio_writeu64(&bio, (u64)val, 16, -1);
+                sz = kwriteu(io, (u64)val, 16, -1);
                 if (sz < 0) return sz;
                 rsz += sz;
 
-                sz = kio_bufio_write(&bio, 1, ">");
+                sz = kwrite(io, 1, ">");
                 if (sz < 0) return sz;
                 rsz += sz;
 
             } else if (c == 'B') {
                 kobj val = va_arg(args, void*);
 
-                sz = kio_bufio_writeb(&bio, val);
+                sz = kwriteB(io, val);
                 if (sz < 0) return sz;
                 rsz += sz;
+
             } else if (c == 'S') {
                 kobj val = va_arg(args, void*);
-                sz = kio_bufio_writes(&bio, val);
+
+                sz = kwriteS(io, val);
                 if (sz < 0) return sz;
                 rsz += sz;
+            
             } else if (c == 'R') {
                 kobj val = va_arg(args, void*);
 
-                sz = kio_bufio_writer(&bio, val);
+                sz = kwriteR(io, val);
                 if (sz < 0) return sz;
                 rsz += sz;
+
             } else {
                 fprintf(stderr, "invalid C-style format string: %s\n", ofmt);
                 kexit(1);
@@ -360,7 +548,5 @@ kprintfv(kobj io, const char* fmt, va_list args) {
         }
     }
 
-    // flush io
-    kio_bufio_done(&bio);
     return rsz;
 }
