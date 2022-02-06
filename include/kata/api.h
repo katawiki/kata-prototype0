@@ -356,6 +356,15 @@ KATA_API kstr
 kstr_new(ssize lenb, const char* data);
 
 
+// make new tuple
+KATA_API ktuple
+ktuple_new(usize len, kobj* data);
+
+// make new tuple, absorbing references from 'data'
+KATA_API ktuple
+ktuple_newz(usize len, kobj* data);
+
+
 // make a new buffer
 KATA_API kbuffer
 kbuffer_new(usize len, const u8* data);

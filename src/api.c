@@ -28,9 +28,14 @@ Kbf_ctx_realloc_(void *opaque, void *ptr, size_t sz) {
 
 KATA_API keno
 kinit(bool fail_on_err) {
+
     Kint->sz = sizeof(struct kint);
+    Ktuple->sz = sizeof(struct ktuple);
+
     Klist->sz = sizeof(struct klist);
+
     Ksys_rawio->sz = sizeof(struct ksys_rawio);
+
 
     bf_context_init(&Kbf_ctx, Kbf_ctx_realloc_, NULL);
 
@@ -339,7 +344,7 @@ kwriteS(kobj io, kobj obj) {
     ktype tp = KOBJ_TYPE(obj);
     if (tp == Kstr) {
         return kwrite(io, ((kstr)obj)->lenb, ((kstr)obj)->data);
-    } else if (tp == Klist || tp == Kint) {
+    } else if (tp == Kint || tp == Ktuple || tp == Klist) {
         return kwriteR(io, obj);
     } else {
         // TODO
@@ -383,6 +388,38 @@ kwriteR(kobj io, kobj obj) {
         if (sz < 0) return sz;
         rsz += sz;
         return rsz;
+
+    } else if (tp == Ktuple) {
+        ssize rsz = 0, sz = kwrite(io, 1, "(");
+        if (sz < 0) return sz;
+        rsz += sz;
+
+        // emit tuple children
+        ktuple t = (ktuple)obj;
+        usize i;
+        for (i = 0; i < t->len; ++i) {
+            if (i > 0) {
+                sz = kwrite(io, 2, ", ");
+                if (sz < 0) return sz;
+                rsz += sz;
+            }
+        
+            sz = kwriteR(io, t->data[i]);
+            if (sz < 0) return sz;
+            rsz += sz;
+        }
+        // to differentiate from a (...) grouping
+        if (t->len == 1) {
+            sz = kwrite(io, 2, ", ");
+            if (sz < 0) return sz;
+            rsz += sz;
+        }
+
+        sz = kwrite(io, 1, ")");
+        if (sz < 0) return sz;
+        rsz += sz;
+        return rsz;
+
     } else {
         // TODO
         kexit(-1);

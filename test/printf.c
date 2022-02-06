@@ -38,7 +38,16 @@ int main(int argc, char** argv) {
     assert(l != NULL);
     assert(kprintf(Ksys_stdout, "l: %R\n", (kobj)l) >= 0);
     KOBJ_DECREF(l);
-
+    
+    // create a tuple, absorbing object references
+    ktuple t = ktuple_newz(3, (kobj[]) {
+        kint_new("4", 10),
+        kint_new("5", 10),
+        kint_new("6", 10),
+    });
+    assert(t != NULL);
+    assert(kprintf(Ksys_stdout, "t: %R\n", (kobj)t) >= 0);
+    KOBJ_DECREF(t);
 
     return 0;
 }
