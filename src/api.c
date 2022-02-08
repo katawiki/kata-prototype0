@@ -30,6 +30,7 @@ KATA_API keno
 kinit(bool fail_on_err) {
 
     Kint->sz = sizeof(struct kint);
+    Kfloat->sz = sizeof(struct kfloat);
     Ktuple->sz = sizeof(struct ktuple);
 
     Klist->sz = sizeof(struct klist);
@@ -41,6 +42,7 @@ kinit(bool fail_on_err) {
 
     kinit_mem();
     kinit_sys();
+    kinit_ks();
 
     return true;
 }
@@ -225,7 +227,8 @@ kwrite(kobj io, usize len, const void* data) {
 
 KATA_API ssize
 kwriteu(kobj io, u64 val, s8 base, s32 width) {
-    assert(2 <= base && base <= 16);
+    assert(base >= 2);
+    assert(base <= 16);
 
     // temporary buffer we populate up to 'i'
     u8 tmp[100];
@@ -256,7 +259,7 @@ kwriteu(kobj io, u64 val, s8 base, s32 width) {
 
     // TODO: zero pad
     assert(width == 0);
-    return i;
+    return kwrite(io, i, tmp);
 }
 
 KATA_API ssize
@@ -292,7 +295,7 @@ kwrites(kobj io, s64 val, s8 base, s32 width) {
 
     // TODO: zero pad
     assert(width == 0);
-    return i;
+    return kwrite(io, i, tmp);
 }
 
 KATA_API ssize
@@ -344,7 +347,7 @@ kwriteS(kobj io, kobj obj) {
     ktype tp = KOBJ_TYPE(obj);
     if (tp == Kstr) {
         return kwrite(io, ((kstr)obj)->lenb, ((kstr)obj)->data);
-    } else if (tp == Kint || tp == Ktuple || tp == Klist) {
+    } else if (tp == Kint || tp == Kfloat || tp == Ktuple || tp == Klist) {
         return kwriteR(io, obj);
     } else {
         // TODO
@@ -362,7 +365,25 @@ kwriteR(kobj io, kobj obj) {
         // TODO: faster ways to dump?
         size_t len;
         char* data = bf_ftoa(&len, &((kint)obj)->val, 10, 0, BF_FTOA_FORMAT_FRAC);
-        return kwrite(io, len, data);
+        ssize res = kwrite(io, len, data);
+        bf_free(&Kbf_ctx, data);
+        return res;
+    } else if (tp == Kfloat) {
+        // TODO: faster ways to dump?
+        size_t len;
+        // A few options for modes:
+        // BF_FTOA_FORMAT_FREE: free format, which is exact
+        // BF_FTOA_FORMAT_FREE_MIN: like above, but lowest number of digits
+        //
+        // should 'prec' be taken from the float, the current value, or infinite always?
+        //
+        // TODO: is 'len * bits_per_limb' correct? I assume it must be....
+        s64 prec = ((kfloat)obj)->val.len * LIMB_BITS;
+        char* data = bf_ftoa(&len, &((kfloat)obj)->val, 10, prec, BF_FTOA_FORMAT_FREE_MIN);
+        ssize res = kwrite(io, len, data);
+        bf_free(&Kbf_ctx, data);
+        return res;
+
     } else if (tp == Klist) {
         // TODO: faster ways to dump?
         ssize rsz = 0, sz = kwrite(io, 1, "[");
@@ -466,7 +487,7 @@ kprintfv(kobj io, const char* fmt, va_list args) {
             while ((c = *fmt) == '+' || c == '-' || c == ' ' || c == '0') {
                 if (c == '+' || c == ' ' || c == '-') {
                     if (havePlus || haveMinus || haveSpace) {
-                        fprintf(stderr, "invalid C-style printf format (have multiple +/-/' ') %s\n", ofmt);
+                        fprintf(stderr, "\nERROR: invalid C-style printf format (have multiple +/-/' ') %s\n", ofmt);
                         kexit(1);
                     }
                     if (c == '+') havePlus = true;
@@ -474,7 +495,7 @@ kprintfv(kobj io, const char* fmt, va_list args) {
                     if (c == '-') haveMinus = true;
                 } else if (c == '0') {
                     if (haveZero) {
-                        fprintf(stderr, "invalid C-style printf format ('0' given multiple times): %s \n", ofmt);
+                        fprintf(stderr, "\nERROR: invalid C-style printf format ('0' given multiple times): %s \n", ofmt);
                         kexit(1);
                     }
                     haveZero = true;
@@ -533,6 +554,16 @@ kprintfv(kobj io, const char* fmt, va_list args) {
                 sz = kwritef(io, val, 10, width, prec);
                 if (sz < 0) return sz;
                 rsz += sz;
+            } else if (c == 'p') {
+                void* val = va_arg(args, void*);
+                sz = kwrite(io, 2, "0x");
+                if (sz < 0) return sz;
+                rsz += sz;
+                
+                sz = kwriteu(io, (u64)val, 16, prec);
+                if (sz < 0) return sz;
+                rsz += sz;
+
             } else if (c == 'O') {
                 kobj val = va_arg(args, void*);
                 ktype tp = KOBJ_TYPE(val);
@@ -579,7 +610,7 @@ kprintfv(kobj io, const char* fmt, va_list args) {
                 rsz += sz;
 
             } else {
-                fprintf(stderr, "invalid C-style format string: %s\n", ofmt);
+                fprintf(stderr, "\nERROR: invalid C-style format string: %s\n", ofmt);
                 kexit(1);
             }
         }

@@ -28,4 +28,10 @@ kinit_sys();
 KATA_API void
 kinit_sys_rawio();
 
+KATA_API void
+kinit_ks();
+KATA_API void
+kinit_ks_ast();
+
+
 #endif // KATA_IMPL_H

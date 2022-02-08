@@ -98,7 +98,6 @@ typedef int64_t        s64;
 
 
 
-
 // floating point types
 typedef float          f32;
 typedef double         f64;
@@ -116,6 +115,9 @@ typedef double         f64;
 #define F64_LN2        0.69314718055994530941723212145817656807550013436025525412068000949339362196969471560586332699641868754
 #define F64_LN10       2.302585092994045684017991454684364207601101488628772976033327900967572609677352480235997205089598298
 
+// Unicode codepoint type, which can reprsesent any character in the Unicode standard
+// NOTE: this is the codepoint index, not the UTF-8 value
+typedef u32            kucp;
 
 
 // set configuration depending on platform settings
@@ -348,6 +350,27 @@ KATA_API kint
 kint_newu(u64 val);
 KATA_API kint
 kint_news(s64 val);
+KATA_API kint
+kint_newf(f64 val);
+
+// make a new float with the given value
+// NOTE: give 'prec=-1' to use whatever precision is neccessary to represent 'val'
+// NOTE: give 'prec=0' to use the current default operating precision (use this if you don't know what to put)
+// NOTE: see 'KFLOAT_PREC_*' for other options
+KATA_API kfloat
+kfloat_new(const char* val, s32 base, s64 prec);
+KATA_API kfloat
+kfloat_newu(u64 val);
+KATA_API kfloat
+kfloat_news(s64 val);
+KATA_API kfloat
+kfloat_newf(f64 val);
+
+// use current default precision
+#define KFLOAT_PREC_AUTO  (0)
+
+// use infinite precision
+#define KFLOAT_PREC_INF   (-1)
 
 
 // make a new str (or return an interned one)
@@ -786,6 +809,5 @@ kprintfv(kobj io, const char* fmt, va_list args);
 // standard modules
 #include <kata/mem.h>
 #include <kata/sys.h>
-
 
 #endif // KATA_API_H

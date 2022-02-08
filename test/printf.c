@@ -5,7 +5,6 @@
 
 #include <kata/test.h>
 
-
 int main(int argc, char** argv) {
     kinit(true);
 
@@ -28,6 +27,11 @@ int main(int argc, char** argv) {
     assert(x != NULL);
     assert(kprintf(Ksys_stdout, "x: %R\n", (kobj)x) >= 0);
     KOBJ_DECREF(x);
+
+    kfloat y = kfloat_new("123456789.0987654321012345678909876543210", 10, KFLOAT_PREC_INF);
+    assert(y != NULL);
+    assert(kprintf(Ksys_stdout, "y: %R\n", (kobj)y) >= 0);
+    KOBJ_DECREF(y);
 
     // create a list, absorbing object references
     klist l = klist_newz(3, (kobj[]) {

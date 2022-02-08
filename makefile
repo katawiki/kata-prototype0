@@ -27,6 +27,7 @@ SRC_C       += $(wildcard src/sys/*.c)
 SRC_C       += $(wildcard src/mem/*.c)
 SRC_C       += $(wildcard src/io/*.c)
 SRC_C       += $(wildcard src/bf/*.c)
+SRC_C       += $(wildcard src/ks/*.c)
 
 # C headers
 SRC_H       := $(wildcard include/kata/*.h)
@@ -110,7 +111,7 @@ OBJ_O       := $(patsubst %.c,%.unix.o,$(SRC_C))
 TEST_O      := $(patsubst %.c,%.unix.o,$(TEST_C))
 
 TEST_BINS   := $(patsubst %.c,bin/%,$(TEST_C))
-TEST_RUNS   := $(patsubst %.c,bin/%.run,$(TEST_C))
+TEST_RUNS   := $(patsubst %.c,%,$(TEST_C))
 
 
 ### Targets ###
@@ -144,7 +145,7 @@ bin/test/%: test/%.unix.o lib/libkata.so
 		'-Wl,-rpath,$$ORIGIN/../../lib'
 
 # run a test
-bin/test/%.run: bin/test/%
+test/%: bin/test/%
 	@echo $(BLU)"TEST: ./$@"$(RST) && ./$<&& echo $(GRN)PASS: ./\$@$(RST) && echo "" || (echo $(RED)$(BOLD)FAIL: ./\$@$(RST) && echo "" && exit 1)
 
 .PHONY: all test clean
