@@ -12,7 +12,6 @@ int main(int argc, char** argv) {
     assert(kprintf(Ksys_stdout, "ks.ast.name: %R\n", Ks_ast->name) >= 0);
     assert(kprintf(Ksys_stdout, "ks.ast.docs: %R\n", Ks_ast->docs) >= 0);
 
-
     kstr filename = kstr_new(-1, "<test>");
     kstr src = kstr_new(-1, "1 + 2");
     assert(kprintf(Ksys_stdout, "filename: %R\n", filename) >= 0);

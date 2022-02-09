@@ -714,6 +714,15 @@ Kthread
 KATA_API bf_context_t
 Kbf_ctx;
 
+// digits (only valid for 0<=digit<16)
+KATA_API const char* Kdigits;
+
+// escape strings (only valid for 0<=idx<256)
+KATA_API const char* Kescstr[];
+
+// escape strings lengths (only valid for 0<=idx<256)
+KATA_API u8 Kescstr_len[];
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

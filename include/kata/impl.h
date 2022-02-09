@@ -17,6 +17,9 @@
 
 
 KATA_API void
+kinit_data();
+
+KATA_API void
 kinit_int();
 
 

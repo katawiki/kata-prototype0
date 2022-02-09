@@ -5,11 +5,6 @@
 
 #include <kata/impl.h>
 
-
-// digit string for integer to string conversions
-static const char* digits = "0123456789ABCDEF";
-
-
 bf_context_t
 Kbf_ctx;
 
@@ -25,6 +20,50 @@ Kbf_ctx_realloc_(void *opaque, void *ptr, size_t sz) {
     return res;
 }
 
+// write UTF-8 string data, escaped
+static ssize
+mywrite_stresc(kobj io, ssize len, const u8* data) {
+    if (len < 0) len = strlen((const char*)data);
+    // total bytes written
+    ssize res = 0;
+
+    // internal buffer
+    #define TMP_LEN 600
+    // send every this many bytes
+    #define TMP_EVERY 512
+    u8 tmp[TMP_LEN];
+    usize tmpi = 0;
+
+    tmp[tmpi++] = '"';
+
+    // check the buffer
+    #define TMP_SEND() do { \
+        ssize rsz = kwrite(io, tmpi, tmp); \
+        if (rsz < 0) return rsz; \
+        res += rsz; \
+        tmpi = 0; \
+    } while (0)
+
+    usize i = 0;
+    while (i < len) {
+        if (tmpi > TMP_EVERY) TMP_SEND();
+
+        // take care of bytes
+        // TODO: allow customization?
+        // TODO: faster to not buffer contiguous non-escaped strings?
+        u8 b = data[i++];
+        memcpy(tmp + tmpi, Kescstr[b], Kescstr_len[b]);
+        tmpi += Kescstr_len[b];
+    }
+
+    // send rest of data
+    tmp[tmpi++] = '"';
+    TMP_SEND();
+    return res;
+}
+
+
+/// C API ///
 
 KATA_API keno
 kinit(bool fail_on_err) {
@@ -39,6 +78,8 @@ kinit(bool fail_on_err) {
 
 
     bf_context_init(&Kbf_ctx, Kbf_ctx_realloc_, NULL);
+
+    kinit_data();
 
     kinit_mem();
     kinit_sys();
@@ -246,7 +287,7 @@ kwriteu(kobj io, u64 val, s8 base, s32 width) {
 
         // now, extract and emit digit
         val /= base;
-        tmp[i++] = digits[cdig];
+        tmp[i++] = Kdigits[cdig];
     } while (val > 0);
 
     // now, reverse buffer
@@ -282,7 +323,7 @@ kwrites(kobj io, s64 val, s8 base, s32 width) {
 
         // now, extract and emit digit
         val /= base;
-        tmp[i++] = digits[cdig];
+        tmp[i++] = Kdigits[cdig];
     } while (val > 0);
 
     // now, reverse buffer
@@ -360,7 +401,7 @@ KATA_API ssize
 kwriteR(kobj io, kobj obj) {
     ktype tp = KOBJ_TYPE(obj);
     if (tp == Kstr) {
-        return kwrite(io, ((kstr)obj)->lenb, ((kstr)obj)->data);
+        return mywrite_stresc(io, ((kstr)obj)->lenb, ((kstr)obj)->data);
     } else if (tp == Kint) {
         // TODO: faster ways to dump?
         size_t len;
