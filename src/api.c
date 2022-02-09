@@ -28,9 +28,9 @@ mywrite_stresc(kobj io, ssize len, const u8* data) {
     ssize res = 0;
 
     // internal buffer
-    #define TMP_LEN 600
+    #define TMP_LEN 272
     // send every this many bytes
-    #define TMP_EVERY 512
+    #define TMP_EVERY 256
     u8 tmp[TMP_LEN];
     usize tmpi = 0;
 
