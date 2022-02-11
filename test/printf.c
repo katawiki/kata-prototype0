@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
     assert(strcmp(xyz->data, "xyz") == 0);
     assert(xyz->data[3] == 0x00);
 
-    assert(kprintf(Ksys_stdout, "hello, world: %S\n", (kobj)xyz) >= 0);
+    assert(kprintf(Ksys_stdout, "hw: %R\n", (kobj)xyz) >= 0);
     KOBJ_DECREF(xyz);
 
     kint x = kint_new("11234128364921612387642197642917542795492144264912653423", 10);
@@ -33,16 +33,15 @@ int main(int argc, char** argv) {
     assert(kprintf(Ksys_stdout, "y: %R\n", (kobj)y) >= 0);
     KOBJ_DECREF(y);
 
-    // create a list, absorbing object references
-    klist l = klist_newz(3, (kobj[]) {
-        kint_new("1", 10),
-        kint_new("2", 10),
-        kint_new("3", 10),
-    });
-    assert(l != NULL);
-    assert(kprintf(Ksys_stdout, "l: %R\n", (kobj)l) >= 0);
-    KOBJ_DECREF(l);
-    
+    // create C escape strings
+    // SEE: https://en.wikipedia.org/wiki/Escape_sequences_in_C
+    kstr escs = kstr_new(-1, "\a\b\t\n\v\f\r\"");
+    assert(escs != NULL);
+    assert(kprintf(Ksys_stdout, "escs: %R\n", (kobj)escs) >= 0);
+    KOBJ_DECREF(escs);
+
+
+
     // create a tuple, absorbing object references
     ktuple t = ktuple_newz(3, (kobj[]) {
         kint_new("4", 10),
@@ -53,6 +52,27 @@ int main(int argc, char** argv) {
     assert(kprintf(Ksys_stdout, "t: %R\n", (kobj)t) >= 0);
     KOBJ_DECREF(t);
 
+
+    // create a list, absorbing object references
+    klist l = klist_newz(3, (kobj[]) {
+        kint_new("1", 10),
+        kint_new("2", 10),
+        kint_new("3", 10),
+    });
+    assert(l != NULL);
+    assert(kprintf(Ksys_stdout, "l: %R\n", (kobj)l) >= 0);
+    KOBJ_DECREF(l);
+
+    // create a dict, absorbing object references
+    kdict d = kdict_new(KDICT_IKV(
+        { "foobar", (kobj)kint_new("12345", 10) },
+        { "blahblah", (kobj)kstr_new(-1, "some useless info...") },
+        { "blah", (kobj)kstr_new(-1, "even more useless info") },
+    ));
+    assert(d != NULL);
+    assert(kprintf(Ksys_stdout, "d: %R\n", (kobj)d) >= 0);
+    KOBJ_DECREF(d);
+    
     return 0;
 }
 

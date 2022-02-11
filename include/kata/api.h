@@ -287,7 +287,7 @@ typedef struct klist {
 }* klist;
 
 // Kata dictionary entry, which is a key-value pair
-typedef struct kdict_entry {
+typedef struct kdict_ent {
 
     // key and value of the entry
     kobj key, val;
@@ -295,7 +295,7 @@ typedef struct kdict_entry {
     // hash(key)
     usize hash;
 
-}* kdict_entry;
+}* kdict_ent;
 
 
 // Kata dictionary, a hash-table/dictionary/associative array of Kata objects
@@ -312,30 +312,58 @@ typedef struct kdict {
     // the capacity of the buckets, in BYTES (NOT ELEMENTS)
     usize buks_cap;
 
-
     // array of entry structures, indexed by 'buks'
-    struct kdict_entry* entrys;
+    struct kdict_ent* ents;
 
-    // the length and capacity of 'entrys', in elements
-    usize entrys_len, entrys_cap;
+    // the length and capacity of 'ents', in elements
+    // NOTE: ents_len counts deleted entries!
+    usize ents_len, ents_cap;
+
+    // the real length, in elements, of 'ents'
+    // NOTE: this does not count deleted entries
+    usize ents_real;
 
 }* kdict;
 
 // perform some code per-each bucket type
-#define KDICT_PER_BUKS(obj_, ...) do { \
+// NOTE: see 'src/types/dict.c' for more info on how this works
+// NOTE: pass 'len_' as the bucket length
+#define KDICT_PER_BUKS(obj_, len_, ...) do { \
     struct kdict* obj__ = (obj_); \
-    if (obj__->buks_len <= U8_MAX - 2) { \
+    if (len_ <= U8_MAX - 2) { \
         u8* BUKS = obj__->buks; \
+        u8 BUK_EMPTY = U8_MAX - 1; \
+        u8 BUK_DEL = U8_MAX - 2; \
         __VA_ARGS__ \
-    } else if (obj__->buks_len <= U16_MAX - 2) { \
+    } else if (len_ <= U16_MAX - 2) { \
         u16* BUKS = obj__->buks; \
+        u16 BUK_EMPTY = U16_MAX - 1; \
+        u16 BUK_DEL = U16_MAX - 2; \
         __VA_ARGS__ \
-    } else if (obj__->buks_len <= U32_MAX - 2) { \
+    } else if (len_ <= U32_MAX - 2) { \
         u32* BUKS = obj__->buks; \
+        u32 BUK_EMPTY = U32_MAX - 1; \
+        u32 BUK_DEL = U32_MAX - 2; \
         __VA_ARGS__ \
     } else { \
         u64* BUKS = obj__->buks; \
+        u64 BUK_EMPTY = U64_MAX - 1; \
+        u64 BUK_DEL = U64_MAX - 2; \
         __VA_ARGS__ \
+    } \
+} while (0)
+
+// helper macro to iterate over 'obj_' (a dictionary), on each iteration 'ent_'
+//   is set to a pointer to the entry, 'i_' is the current number (starts at 0), and 'pos_'
+//   is the actual position in the entries array
+#define KDICT_ITER(obj_, ent_, i_, pos_, ...) do { \
+    struct kdict* obj__ = (struct kdict*)(obj_); \
+    for (i_ = pos_ = 0; i_ < obj__->ents_len; ++i_) { \
+        ent_ = &obj__->ents[i]; \
+        if (ent_->key != NULL) { \
+            { __VA_ARGS__ } \
+            pos_++; \
+        } \
     } \
 } while (0)
 
@@ -465,15 +493,12 @@ struct kdict_ikv {
 KATA_API kdict
 kdict_new(struct kdict_ikv* ikv);
 
-// init a dict struct with the given C-style initializers (or, NULL for empty)
+// merge in 'ikv' over 'obj', replacing any keys
 KATA_API keno
-kdict_init(struct kdict* obj, struct kdict_ikv* ikv);
-
-// done with dict, free resources
-KATA_API void
-kdict_done(struct kdict* obj);
+kdict_merge(struct kdict* obj, struct kdict_ikv* ikv);
 
 // get the value of the given key, or NULL if not found
+// NOTE: this can return successfully, but the value will be NULL if it wasn't found
 KATA_API keno
 kdict_get(struct kdict* obj, kobj key, kobj* val);
 KATA_API keno
@@ -570,6 +595,9 @@ typedef struct ktype {
     //                      (for dynamically sized types, which is uncommon)
     s32 sz;
 
+    // attributes of the type, includes static variables, static functions, and member
+    //   functions
+    kdict attr;
 
     /// Type Functions ///
 
@@ -760,6 +788,13 @@ kobj_getf(kobj obj, f64* out);
 KATA_API keno
 kobj_getc(kobj obj, f64* outre, f64* outim); // complex numbers
 
+// calculate 'hash(obj)' and store in '*out'
+KATA_API keno
+kobj_hash(kobj obj, usize* out);
+
+// calculate whether a==b, and store in '*out'
+KATA_API keno
+kobj_eq(kobj a, kobj b, bool* out);
 
 // call 'fn(*args)', return a reference to the result or NULL if an exception
 //   was thrown

@@ -18,8 +18,8 @@ int main(int argc, char** argv) {
     assert(kprintf(Ksys_stdout, "src: %R\n", src) >= 0);
 
     // parse the program
-    ks_ast prog = ks_parse(filename, src, -1, NULL);
-    assert(kprintf(Ksys_stdout, "ks_parse(filename, src):\n%R\n", prog) >= 0);
+    //ks_ast prog = ks_parse(filename, src, -1, NULL);
+    //assert(kprintf(Ksys_stdout, "ks_parse(filename, src):\n%R\n", prog) >= 0);
 
     return 0;
 }

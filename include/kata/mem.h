@@ -1,5 +1,7 @@
-/* kata/sys.h - Kata's system interface (replacing the old 'os' library)
+/* kata/mem.h - Kata's memory interface and utilities
  *
+ * This also includes some math, hashing, and other utilities not directly
+ *   tied to memory
  *
  * @author: Cade Brown <me@cade.site>
  */
@@ -28,6 +30,11 @@ kmem_grow(void** pptr, usize sz);
 KATA_API bool
 kmem_growx(void** pptr, usize* pcap, usize sz);
 
+// get the next capacity, given a capacity, for a good default memory
+//   reallocation scheme
+KATA_API usize
+kmem_nextcap(usize cap, usize sz);
+
 // free a memory block allocate with 'kmem_make'
 KATA_API void
 kmem_free(void* ptr);
@@ -37,6 +44,16 @@ kmem_free(void* ptr);
 //         to only loop once?
 KATA_API usize
 kmem_hash(usize len, const u8* data);
+
+
+// return whether 'n' is prime
+KATA_API usize
+kmem_isprime(usize n);
+
+// return the next prime > 'n'
+KATA_API usize
+kmem_nextprime(usize n);
+
 
 
 #endif // KATA_MEM_H

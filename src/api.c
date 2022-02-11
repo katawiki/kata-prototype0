@@ -67,12 +67,13 @@ mywrite_stresc(kobj io, ssize len, const u8* data) {
 
 KATA_API keno
 kinit(bool fail_on_err) {
-
+    // set sizes for builtin types since there are cirular dependencies
     Kint->sz = sizeof(struct kint);
     Kfloat->sz = sizeof(struct kfloat);
     Ktuple->sz = sizeof(struct ktuple);
 
     Klist->sz = sizeof(struct klist);
+    Kdict->sz = sizeof(struct kdict);
 
     Ksys_rawio->sz = sizeof(struct ksys_rawio);
 
@@ -162,6 +163,15 @@ kobj_getc(kobj obj, f64* outre, f64* outim) {
 
 }
 
+KATA_API keno
+kobj_hash(kobj obj, usize* out) {
+
+}
+
+KATA_API keno
+kobj_eq(kobj a, kobj b, bool* out) {
+
+}
 
 KATA_API kobj
 kcall(kobj fn, usize nargs, kobj* args) {
@@ -388,7 +398,7 @@ kwriteS(kobj io, kobj obj) {
     ktype tp = KOBJ_TYPE(obj);
     if (tp == Kstr) {
         return kwrite(io, ((kstr)obj)->lenb, ((kstr)obj)->data);
-    } else if (tp == Kint || tp == Kfloat || tp == Ktuple || tp == Klist) {
+    } else if (tp == Kint || tp == Kfloat || tp == Ktuple || tp == Klist || tp == Kdict) {
         return kwriteR(io, obj);
     } else {
         // TODO
@@ -425,32 +435,6 @@ kwriteR(kobj io, kobj obj) {
         bf_free(&Kbf_ctx, data);
         return res;
 
-    } else if (tp == Klist) {
-        // TODO: faster ways to dump?
-        ssize rsz = 0, sz = kwrite(io, 1, "[");
-        if (sz < 0) return sz;
-        rsz += sz;
-
-        // emit list children
-        klist l = (klist)obj;
-        usize i;
-        for (i = 0; i < l->len; ++i) {
-            if (i > 0) {
-                sz = kwrite(io, 2, ", ");
-                if (sz < 0) return sz;
-                rsz += sz;
-            }
-        
-            sz = kwriteR(io, l->data[i]);
-            if (sz < 0) return sz;
-            rsz += sz;
-        }
-
-        sz = kwrite(io, 1, "]");
-        if (sz < 0) return sz;
-        rsz += sz;
-        return rsz;
-
     } else if (tp == Ktuple) {
         ssize rsz = 0, sz = kwrite(io, 1, "(");
         if (sz < 0) return sz;
@@ -481,6 +465,69 @@ kwriteR(kobj io, kobj obj) {
         if (sz < 0) return sz;
         rsz += sz;
         return rsz;
+
+    } else if (tp == Klist) {
+        // TODO: faster ways to dump?
+        ssize rsz = 0, sz = kwrite(io, 1, "[");
+        if (sz < 0) return sz;
+        rsz += sz;
+
+        // emit list children
+        klist l = (klist)obj;
+        usize i;
+        for (i = 0; i < l->len; ++i) {
+            if (i > 0) {
+                sz = kwrite(io, 2, ", ");
+                if (sz < 0) return sz;
+                rsz += sz;
+            }
+        
+            sz = kwriteR(io, l->data[i]);
+            if (sz < 0) return sz;
+            rsz += sz;
+        }
+
+        sz = kwrite(io, 1, "]");
+        if (sz < 0) return sz;
+        rsz += sz;
+        return rsz;
+
+    } else if (tp == Kdict) {
+        // TODO: faster ways to dump?
+        ssize rsz = 0, sz = kwrite(io, 1, "{");
+        if (sz < 0) return sz;
+        rsz += sz;
+
+        // emit list children
+        kdict d = (kdict)obj;
+
+        usize i, pos;
+        struct kdict_ent* ent;
+        KDICT_ITER(d, ent, i , pos, {
+            if (i > 0) {
+                sz = kwrite(io, 2, ", ");
+                if (sz < 0) return sz;
+                rsz += sz;
+            }
+        
+            sz = kwriteR(io, ent->key);
+            if (sz < 0) return sz;
+            rsz += sz;
+
+            sz = kwrite(io, 2, ": ");
+            if (sz < 0) return sz;
+            rsz += sz;
+
+            sz = kwriteR(io, ent->val);
+            if (sz < 0) return sz;
+            rsz += sz;
+        });
+       
+        sz = kwrite(io, 1, "}");
+        if (sz < 0) return sz;
+        rsz += sz;
+        return rsz;
+
 
     } else {
         // TODO

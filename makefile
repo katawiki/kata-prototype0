@@ -2,17 +2,20 @@
 #
 # for the web platform, `make -f web.make`
 #
+# * https://stackoverflow.com/questions/52653025/why-is-march-native-used-so-rarely
+#
 # @author: Cade Brown <me@cade.site>
 
 
 ### Config ###
 
 # TODO: rpath?
-CFLAGS      += -Ofast -march=native
+CFLAGS      += -O2
+#CFLAGS      += -Ofast -march=native
 LDFLAGS     += -Llib
 
 # debug
-CFLAGS      += -g
+#CFLAGS      += -g
 
 ### Input Files ###
 
