@@ -7,7 +7,7 @@
 
 int main(int argc, char** argv) {
     kinit(true);
-
+    
     kstr xyz = kstr_new(3, "xyz");
     assert(xyz != NULL);
     assert(xyz->lenb == 3);

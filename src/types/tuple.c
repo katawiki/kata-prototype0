@@ -43,3 +43,28 @@ ktuple_newz(usize len, kobj* data) {
     return obj;
 }
 
+static KCFUNC(ktuple_del_) {
+    ktuple obj;
+    KARGS("obj:!", &obj, Ktuple);
+
+    // free all entries
+    usize i;
+    for (i = 0; i < obj->len; ++i) {
+        KOBJ_DECREF(obj->data[i]);
+    }
+
+    kobj_del(obj);
+
+    return NULL;
+}
+
+
+KATA_API void
+kinit_tuple() {
+    ktype_init(Ktuple, sizeof(struct ktuple), "tuple", "Tuple collection type");
+
+    ktype_merge(Ktuple, KDICT_IKV(
+        { "__del", kfunc_new(ktuple_del_, "tuple.__del(obj: tuple)", "") },
+    ));
+}
+

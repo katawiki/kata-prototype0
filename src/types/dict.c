@@ -209,6 +209,24 @@ kdict_new(struct kdict_ikv* ikv) {
     return obj;
 }
 
+KATA_API kdict
+kdict_newz(struct kdict_ikv* ikv) {
+    kdict obj = kobj_make(Kdict);
+    if (!obj) return NULL;
+
+    obj->buks_cap = obj->buks_len = 0;
+    obj->buks = NULL;
+
+    obj->ents_cap = obj->ents_len = obj->ents_real = 0;
+    obj->ents = NULL;
+
+    if (kdict_mergez(obj, ikv) < 0) {
+        KOBJ_DECREF(obj);
+        return NULL;
+    }
+
+    return obj;
+}
 KATA_API keno
 kdict_merge(struct kdict* obj, struct kdict_ikv* ikv) {
     if (!ikv) return 0;
@@ -230,8 +248,37 @@ kdict_merge(struct kdict* obj, struct kdict_ikv* ikv) {
             return -1;
         }
 
-        KOBJ_DECREF(it->val);
         KOBJ_DECREF(okey);
+
+        it++;
+    }
+
+    return 0;
+}
+
+KATA_API keno
+kdict_mergez(struct kdict* obj, struct kdict_ikv* ikv) {
+    if (!ikv) return 0;
+    
+    // now, add all elements
+    struct kdict_ikv* it = ikv;
+    while (it->key != NULL) {
+        kstr okey = kstr_new(-1, it->key);
+
+        if (!okey || kdict_seth(obj, (kobj)okey, okey->hash, it->val) < 0) {
+            if (okey) KOBJ_DECREF(okey);
+            KOBJ_DECREF(it->val);
+
+            // remove references to other values that have not been eliminated
+            while (it->key != NULL) {
+                KOBJ_DECREF(it->val);
+                it++;
+            }
+            return -1;
+        }
+
+        KOBJ_DECREF(okey);
+        KOBJ_DECREF(ikv->val);
 
         it++;
     }
@@ -326,3 +373,34 @@ kdict_seth(struct kdict* obj, kobj key, usize hash, kobj val) {
         return true;
     }
 }
+
+static KCFUNC(kdict_del_) {
+    kdict obj;
+    KARGS("obj:!", &obj, Kdict);
+
+    // free all entries
+    usize i, pos;
+    struct kdict_ent* ent;
+    KDICT_ITER(obj, ent, i, pos, {
+        KOBJ_DECREF(ent->key);
+        KOBJ_DECREF(ent->val);
+    });
+
+    kmem_free(obj->ents);
+    kmem_free(obj->buks);
+
+    kobj_del(obj);
+
+    return NULL;
+}
+
+
+KATA_API void
+kinit_dict() {
+    ktype_init(Kdict, sizeof(struct kdict), "dict", "Dictionary mapping type");
+
+    ktype_merge(Kdict, KDICT_IKV(
+        { "__del", kfunc_new(kdict_del_, "dict.__del(obj: dict)", "") },
+    ));
+}
+

@@ -20,7 +20,8 @@ int main(int argc, char** argv) {
     // parse the program
     //ks_ast prog = ks_parse(filename, src, -1, NULL);
     //assert(kprintf(Ksys_stdout, "ks_parse(filename, src):\n%R\n", prog) >= 0);
-
+    KOBJ_DECREF(src);
+    KOBJ_DECREF(filename);
     return 0;
 }
 

@@ -15,7 +15,7 @@ CFLAGS      += -O2
 LDFLAGS     += -Llib
 
 # debug
-#CFLAGS      += -g
+CFLAGS      += -g
 
 ### Input Files ###
 
@@ -113,8 +113,8 @@ LWHTB       := "\033[107m"
 OBJ_O       := $(patsubst %.c,%.unix.o,$(SRC_C))
 TEST_O      := $(patsubst %.c,%.unix.o,$(TEST_C))
 
-TEST_BINS   := $(patsubst %.c,bin/%,$(TEST_C))
-TEST_RUNS   := $(patsubst %.c,%,$(TEST_C))
+TEST_BINS   := $(patsubst %.c,%,$(TEST_C))
+TEST_RUNS   := $(patsubst %.c,%.run,$(TEST_C))
 
 
 ### Targets ###
@@ -140,15 +140,15 @@ bin/ks: cli/ks.unix.o lib/libkata.so
 		$(LDFLAGS) \
 		'-Wl,-rpath,$$ORIGIN/../lib'
 
-bin/test/%: test/%.unix.o lib/libkata.so
+test/%: test/%.unix.o lib/libkata.so
 	@mkdir -p $(dir $@)
 	$(CC) -o $@ $< -lkata \
 		$(CFLAGS) \
 		$(LDFLAGS) \
-		'-Wl,-rpath,$$ORIGIN/../../lib'
+		'-Wl,-rpath,$$ORIGIN/../lib'
 
 # run a test
-test/%: bin/test/%
+test/%.run: test/%
 	@echo $(BLU)"TEST: ./$@"$(RST) && ./$<&& echo $(GRN)PASS: ./\$@$(RST) && echo "" || (echo $(RED)$(BOLD)FAIL: ./\$@$(RST) && echo "" && exit 1)
 
 .PHONY: all test clean

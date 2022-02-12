@@ -25,3 +25,9 @@ kfunc_new(kcfunc cfunc, const char* name, const char* docs) {
     return obj;
 }
 
+
+KATA_API void
+kinit_func() {
+    ktype_init(Kfunc, sizeof(struct kfunc), "func", "Function type");
+
+}

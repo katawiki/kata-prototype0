@@ -381,6 +381,7 @@ kint_news(s64 val);
 KATA_API kint
 kint_newf(f64 val);
 
+
 // make a new float with the given value
 // NOTE: give 'prec=-1' to use whatever precision is neccessary to represent 'val'
 // NOTE: give 'prec=0' to use the current default operating precision (use this if you don't know what to put)
@@ -406,6 +407,12 @@ kfloat_newf(f64 val);
 KATA_API kstr
 kstr_new(ssize lenb, const char* data);
 
+// compare 'a' and 'b', returning:
+//   <0: when a<b
+//  ==0: when a==b
+//   >0: when a>b
+KATA_API s32
+kstr_cmp(kstr a, kstr b);
 
 // make new tuple
 KATA_API ktuple
@@ -490,12 +497,18 @@ struct kdict_ikv {
 
 
 // make a new dict
+// NOTE: newz absrbs references to 'ikv's vals
 KATA_API kdict
 kdict_new(struct kdict_ikv* ikv);
+KATA_API kdict
+kdict_newz(struct kdict_ikv* ikv);
 
 // merge in 'ikv' over 'obj', replacing any keys
+// NOTE: mergez absorbs the references to 'ikv's values
 KATA_API keno
 kdict_merge(struct kdict* obj, struct kdict_ikv* ikv);
+KATA_API keno
+kdict_mergez(struct kdict* obj, struct kdict_ikv* ikv);
 
 // get the value of the given key, or NULL if not found
 // NOTE: this can return successfully, but the value will be NULL if it wasn't found
@@ -528,12 +541,12 @@ enum {
 
 };
 
-// function parameters for a C-style function
-// NOTE: you should always use the macro, and not rely on this!
-#define KCFUNC_PARAMS kobj kfn, s32 nargs, kobj* vargs
 
-// C-style function type
-typedef kobj (*kcfunc)(KCFUNC_PARAMS);
+// signature for a C-style function
+#define KCFUNC(name_) kobj name_(s32 nargs, kobj* vargs)
+
+// C-style function signature
+typedef kobj (*kcfunc)(s32, kobj*);
 
 // callable first-class function type
 typedef struct kfunc {
@@ -617,14 +630,13 @@ typedef struct ktype {
     //   these functions should NOT free the pointer that the object is stored at
     //
 
-    // <type>.__new(tp, *args)-><type>
+    // <type>.__new(*args)-><type>
     //   allocation function that takes
 
-    // <type>.__del(tp, obj)->void
-    //   deallocation function that deletes the object itself
+    // <type>.__del(obj)->void
+    //   deallocation function that deletes the object itself and any resources used
 
     kobj fn_new, fn_del;
-
 
     // <type>.__init(tp, obj, *args)->void
     //   initialization function that takes an allocated (but undefined) address of
@@ -645,6 +657,11 @@ typedef struct ktype {
 // initialize a type with the given information
 KATA_API void
 ktype_init(ktype tp, s32 sz, const char* name, const char* docs);
+
+// merge 'ikv' into 'tp's attributes
+KATA_API void
+ktype_merge(ktype tp, struct kdict_ikv* ikv);
+
 
 // meta data structucture stored before an object in memory
 struct kobj_meta {
@@ -721,6 +738,11 @@ kthread_pop_frame(struct kthread* obj);
 
 // globals, which start with 'K' (capital)
 
+// global variables
+KATA_API kdict
+Kglobals
+;
+
 KATA_API ktype
 Kint,
 Kfloat,
@@ -736,6 +758,12 @@ Kdict_entry,
 Kfunc,
 Ktype,
 Kthread
+;
+
+// special string constants
+KATA_API kstr
+Ksc_new, // '__new'
+Ksc_del  // '__del'
 ;
 
 // context for all of libbf
@@ -767,44 +795,42 @@ kinit(bool fail_on_err);
 KATA_API void
 kexit(keno rc);
 
-// make an empty object, and initialize its meta for a given type
-// NOTE: the resulting object will be uninitialized (the metadata will be, though)
-KATA_API kobj
-kobj_make(ktype tp);
 
-// free an object, according to its type constructor
-// NOTE: do not call this directly, use 'KOBJ_DECREF()' instead
-KATA_API void
-kobj_free(kobj obj);
-
-// get the value of an object converted to a particular C-style value
-// NOTE: returns 0 on success, <0 on failure, and >0 with metadata
-KATA_API keno
-kobj_getu(kobj obj, u64* out);
-KATA_API keno
-kobj_gets(kobj obj, s64* out);
-KATA_API keno
-kobj_getf(kobj obj, f64* out);
-KATA_API keno
-kobj_getc(kobj obj, f64* outre, f64* outim); // complex numbers
-
-// calculate 'hash(obj)' and store in '*out'
-KATA_API keno
-kobj_hash(kobj obj, usize* out);
-
-// calculate whether a==b, and store in '*out'
-KATA_API keno
-kobj_eq(kobj a, kobj b, bool* out);
 
 // call 'fn(*args)', return a reference to the result or NULL if an exception
 //   was thrown
 KATA_API kobj
-kcall(kobj fn, usize nargs, kobj* args);
+kcall(kobj fn, usize nargs, kobj* vargs);
 
 // quick call, which may be optimized with short circuiting paths when
 //   debugging is not important
 KATA_API kobj
-kqcall(kobj fn, usize nargs, kobj* args);
+kqcall(kobj fn, usize nargs, kobj* vargs);
+
+// utilitry macro for inside 'KCFUNC' definitions
+#define KARGS(fmt_, ...) do { \
+    if (!kargs(nargs, vargs, fmt_, __VA_ARGS__)) { \
+        kexit(-1); \
+    } \
+} while (0)
+
+
+// parse function arguments from a C-style format string
+// the general idea is to emulate what the VM would do, and allow similar functionality
+//   within C functions
+// for example:
+// kstr a;
+// kint b;
+// kargs(2, (kobj[]){ a, b }, "a:!, b:!", &a, Kstr, &b, Kint);
+KATA_API bool
+kargs(s32 nargs, kobj* vargs, const char* fmt, ...);
+KATA_API bool
+kargsv(s32 nargs, kobj* vargs, const char* fmt, va_list ap);
+
+// check whether 'obj is trait'
+KATA_API bool
+kis(kobj obj, kobj trait, bool* good);
+
 
 // read a sequence of bytes from a IO-like object
 // NOTE: number of characters read returned, or <0 on error
@@ -846,6 +872,43 @@ KATA_API ssize
 kprintf(kobj io, const char* fmt, ...);
 KATA_API ssize
 kprintfv(kobj io, const char* fmt, va_list args);
+
+
+/// object API ///
+
+// make an empty object, and initialize its meta for a given type
+// NOTE: the resulting object will be uninitialized (the metadata will be, though)
+KATA_API kobj
+kobj_make(ktype tp);
+
+// free an object, according to its type constructor
+// NOTE: do not call this directly, use 'KOBJ_DECREF()' instead
+KATA_API void
+kobj_free(kobj obj);
+
+// deletes object, should only be called by other deleters, or GCs
+KATA_API void
+kobj_del(kobj obj);
+
+// get the value of an object converted to a particular C-style value
+// NOTE: returns 0 on success, <0 on failure, and >0 with metadata
+KATA_API keno
+kobj_getu(kobj obj, u64* out);
+KATA_API keno
+kobj_gets(kobj obj, s64* out);
+KATA_API keno
+kobj_getf(kobj obj, f64* out);
+KATA_API keno
+kobj_getc(kobj obj, f64* outre, f64* outim); // complex numbers
+
+// calculate 'hash(obj)' and store in '*out'
+KATA_API keno
+kobj_hash(kobj obj, usize* out);
+
+// calculate whether a==b, and store in '*out'
+KATA_API keno
+kobj_eq(kobj a, kobj b, bool* out);
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -10,6 +10,17 @@
 
 KTYPE_DECL(Kstr);
 
+KATA_API s32
+kstr_cmp(kstr a, kstr b) {
+    if (a == b) return 0;
+    // get minimum (i.e. safe) length
+    usize min_len = a->lenb > b->lenb ? b->lenb : a->lenb;
+    // compare valid bytes, which will include the NUL-terminator
+    s32 cv = memcmp(a->data, b->data, min_len+1);
+    // return sign(cv)
+    return cv < 0 ? -1 : (cv > 0 ? 1 : 0);
+}
+
 KATA_API kstr
 kstr_new(ssize lenb, const char* data) {
     if (lenb < 0) lenb = strlen(data);
@@ -39,4 +50,10 @@ kstr_new(ssize lenb, const char* data) {
     obj->data[lenb] = '\0';
 
     return obj;
+}
+
+KATA_API void
+kinit_str() {
+    ktype_init(Kstr, sizeof(struct kstr), "str", "String type");
+
 }

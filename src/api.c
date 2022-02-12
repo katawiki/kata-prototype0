@@ -5,12 +5,27 @@
 
 #include <kata/impl.h>
 
+kdict
+Kglobals
+;
+
+kstr
+Ksc_new,
+Ksc_del 
+;
+
 bf_context_t
 Kbf_ctx;
 
 // internal allocation function for libbf
 static void*
 Kbf_ctx_realloc_(void *opaque, void *ptr, size_t sz) {
+    if (!sz) {
+        // free pointer
+        kmem_free(ptr);
+        return NULL;
+    }
+
     void* res = ptr;
     if (!kmem_grow(&res, sz)){ 
         fprintf(stderr, "libbf: out of memory\n");
@@ -75,12 +90,38 @@ kinit(bool fail_on_err) {
     Klist->sz = sizeof(struct klist);
     Kdict->sz = sizeof(struct kdict);
 
+    Kfunc->sz = sizeof(struct kfunc);
+
     Ksys_rawio->sz = sizeof(struct ksys_rawio);
 
+    Ksc_new = kstr_new(-1, "__new");
+    Ksc_del = kstr_new(-1, "__del");
 
     bf_context_init(&Kbf_ctx, Kbf_ctx_realloc_, NULL);
 
     kinit_data();
+
+    // initialize builtin types
+
+    kinit_str();
+
+    kinit_int();
+    kinit_float();
+
+    kinit_tuple();
+
+    kinit_list();
+    kinit_dict();
+    
+    kinit_func();
+
+
+    Kglobals = kdict_new(KDICT_IKV(
+        { "int", Kint },
+        { "str", Kstr },
+        { "list", Klist },
+        { "dict", Kdict },
+    ));
 
     kinit_mem();
     kinit_sys();
@@ -96,13 +137,14 @@ kexit(keno rc) {
     } else {
         // TODO: print return code
         fprintf(stderr, "kexit: rc=%i\n", (int)rc);
-        exit(1);
+        abort();
     }
 }
 
 KATA_API kobj
 kobj_make(ktype tp) {
     assert(tp != NULL);
+    assert(tp->sz > 0);
     struct kobj_meta* meta = kmem_make(sizeof(struct kobj_meta) + tp->sz);
     if (!meta) return NULL;
 
@@ -115,26 +157,39 @@ kobj_make(ktype tp) {
 
 KATA_API void
 kobj_free(kobj obj) {
-    ktype type = KOBJ_TYPE(obj);
+    ktype tp = KOBJ_TYPE(obj);
     kobj res;
+    if (tp->fn_del) {
 
-    if (type->fn_done) {
-        // call uninitializer
-        res = kcall(type->fn_done, 1, &obj);
-        if (!res) kexit(-1);
-        KOBJ_DECREF(res);
-    }
-
-    if (type->fn_del) {
         // call deleter
-        res = kcall(type->fn_del, 1, &obj);
-        if (!res) kexit(-1);
-        KOBJ_DECREF(res);
+        res = kqcall(tp->fn_del, 1, (kobj[]){ obj });
+        assert(res == NULL);
+        //if (!res) kexit(-1);
+        //KOBJ_DECREF(res);
+
+    } else if (tp->fn_done) {
+        // call uninitializer
+        res = kqcall(tp->fn_done, 2, (kobj[]){ (kobj)tp, obj });
+        assert(res == NULL);
+        //if (!res) kexit(-1);
+        //KOBJ_DECREF(res);
+
+        // manually free memory
+        kmem_free(KOBJ_META(obj));
     } else {
         // use default delete, which is to delete the memory
         kmem_free(KOBJ_META(obj));
     }
 }
+
+// deletes object, should only be called by other deleters, or GCs
+KATA_API void
+kobj_del(kobj obj) {
+    // use default delete, which is to delete the memory
+    kmem_free(KOBJ_META(obj));
+}
+
+
 
 KATA_API keno
 kobj_getu(kobj obj, u64* out) {
@@ -174,13 +229,13 @@ kobj_eq(kobj a, kobj b, bool* out) {
 }
 
 KATA_API kobj
-kcall(kobj fn, usize nargs, kobj* args) {
+kcall(kobj fn, usize nargs, kobj* vargs) {
     
     // get the current thread structure
     kthread thd = kthread_get();
 
     // enter the function
-    if (kthread_push_frame(thd, fn, nargs, args) < 0) {
+    if (kthread_push_frame(thd, fn, nargs, vargs) < 0) {
         return NULL;
     }
 
@@ -191,7 +246,7 @@ kcall(kobj fn, usize nargs, kobj* args) {
     if (tp == Kfunc) {
         kfunc kfn = (kfunc)fn;
         if (kfn->kind & KFUNC_CFUNC) {
-            res = kfn->cfunc_(kfn, nargs, args);
+            res = kfn->cfunc_(nargs, vargs);
         } else {
             kexit(-1);
             return NULL;
@@ -203,7 +258,133 @@ kcall(kobj fn, usize nargs, kobj* args) {
 
 KATA_API kobj
 kqcall(kobj fn, usize nargs, kobj* args) {
+    ktype tp = KOBJ_TYPE(fn);
+    if (tp == Kfunc) {
+        kfunc kfn = (kfunc)fn;
+        if (kfn->kind & KFUNC_CFUNC) {
+            return kfn->cfunc_(nargs, args);
+        }
+    }
+
+    // just do default
     return kcall(fn, nargs, args);
+}
+
+KATA_API bool
+kargs(s32 nargs, kobj* vargs, const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    bool res = kargsv(nargs, vargs, fmt, ap);
+    va_end(ap);
+    return res;
+}
+
+KATA_API bool
+kargsv(s32 nargs, kobj* vargs, const char* fmt, va_list ap) {
+    // position and length in 'fmt'
+    s32 i = 0;
+    s32 slen = strlen(fmt);
+
+    // position of in arguments
+    s32 ai = 0;
+
+    // skip white space
+    #define SKIPWS() do { \
+        while (i < slen && (fmt[i] == ' ' || fmt[i] == '\t')) i++; \
+    } while (0)
+
+    char name[256];
+    while (true) {
+        // skip whitespace
+        SKIPWS();
+        if (i >= slen) break;
+
+        // now, we expect a name
+        s32 j = 0;
+        while (i < slen && fmt[i] != ':' && fmt[i] != ' ') {
+            name[j++] = fmt[i++];
+        }
+        name[j] = '\0';
+
+
+        // invalid name
+        if (j == 0) {
+            break;
+        }
+
+        // pointer to the argument destination
+        void* parg = va_arg(ap, void*);
+
+        // not enough arguments for the format string
+        if (ai >= nargs) {
+            kexit(-1);
+            return false;
+        }
+
+        // otherwise, take the argument value that was passed in
+        kobj val = vargs[ai++];
+
+        // now, check for validation
+        SKIPWS();
+        if (fmt[i] == ':') {
+            // skip colon
+            i++;
+            SKIPWS();
+
+            // parse type expression
+            if (fmt[i] == '!') {
+                // take from arguments
+                i++;
+                ktype tp = va_arg(ap, ktype);
+                bool good;
+                if (!kis(val, (kobj)tp, &good)) {
+                    return false;
+                }
+
+                // set to value, no extra reference
+                *(kobj*)parg = val;
+            } else {
+                assert(false);
+                kexit(-1);
+            }
+        } else if (i < slen) {
+            // accept any argument
+            printf("'%s'\n", fmt+i);
+            assert(false);
+        } else {
+            // set to value, no extra reference
+            *(kobj*)parg = val;
+        }
+
+        // skip comma
+        SKIPWS();
+        if (fmt[i] == ',') i++;
+    }
+    SKIPWS();
+
+    // extra characters
+    if (fmt[i] != '\0') {
+        kexit(-1);
+        return false;
+    }
+
+    // extra args
+    // TODO: should this be an error, or also check for allowing none?
+    if (ai < nargs) {
+        kexit(-1);
+        return false;
+    }
+
+    return true;
+}
+
+KATA_API bool
+kis(kobj obj, kobj trait, bool* good) {
+    ktype tp_obj = KOBJ_TYPE(obj), tp_trait = KOBJ_TYPE(trait);
+    // TODO: support other traits
+    assert(tp_trait == Ktype);
+    *good = tp_obj == tp_trait;
+    return true;
 }
 
 
@@ -417,7 +598,7 @@ kwriteR(kobj io, kobj obj) {
         size_t len;
         char* data = bf_ftoa(&len, &((kint)obj)->val, 10, 0, BF_FTOA_FORMAT_FRAC);
         ssize res = kwrite(io, len, data);
-        bf_free(&Kbf_ctx, data);
+        kmem_free(data);
         return res;
     } else if (tp == Kfloat) {
         // TODO: faster ways to dump?
@@ -432,7 +613,7 @@ kwriteR(kobj io, kobj obj) {
         s64 prec = ((kfloat)obj)->val.len * LIMB_BITS;
         char* data = bf_ftoa(&len, &((kfloat)obj)->val, 10, prec, BF_FTOA_FORMAT_FREE_MIN);
         ssize res = kwrite(io, len, data);
-        bf_free(&Kbf_ctx, data);
+        kmem_free(data);
         return res;
 
     } else if (tp == Ktuple) {

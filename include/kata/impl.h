@@ -21,6 +21,22 @@ kinit_data();
 
 KATA_API void
 kinit_int();
+KATA_API void
+kinit_float();
+
+KATA_API void
+kinit_str();
+
+KATA_API void
+kinit_tuple();
+
+KATA_API void
+kinit_list();
+KATA_API void
+kinit_dict();
+
+KATA_API void
+kinit_func();
 
 
 // module initializers

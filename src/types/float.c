@@ -86,8 +86,23 @@ kfloat_newf(f64 val) {
     return obj;
 }
 
+static KCFUNC(kfloat_del_) {
+    kfloat obj;
+    KARGS("obj:!", &obj, Kfloat);
+
+    bf_delete(&obj->val);
+    kobj_del(obj);
+
+    return NULL;
+}
+
+
 KATA_API void
 kinit_float() {
+    ktype_init(Kfloat, sizeof(struct kfloat), "float", "Floating point number type of arbitrary precision");
 
+    ktype_merge(Kfloat, KDICT_IKV(
+        { "__del", kfunc_new(kfloat_del_, "float.__del(obj: float)", "") },
+    ));
 }
 

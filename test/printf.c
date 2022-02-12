@@ -40,8 +40,6 @@ int main(int argc, char** argv) {
     assert(kprintf(Ksys_stdout, "escs: %R\n", (kobj)escs) >= 0);
     KOBJ_DECREF(escs);
 
-
-
     // create a tuple, absorbing object references
     ktuple t = ktuple_newz(3, (kobj[]) {
         kint_new("4", 10),

@@ -88,8 +88,23 @@ kint_newf(f64 val) {
     return obj;
 }
 
+static KCFUNC(kint_del_) {
+    kint obj;
+    KARGS("obj:!", &obj, Kint);
+
+    bf_delete(&obj->val);
+    kobj_del(obj);
+
+    return NULL;
+}
+
+
 KATA_API void
 kinit_int() {
+    ktype_init(Kint, sizeof(struct kint), "int", "integer type of arbitrary precision");
 
+    ktype_merge(Kint, KDICT_IKV(
+        { "__del", kfunc_new(kint_del_, "int.__del(obj: int)", "") },
+    ));
 }
 

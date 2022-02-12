@@ -34,20 +34,16 @@ klist_newz(usize len, kobj* data) {
     klist obj = kobj_make(Klist);
     if (!obj) return NULL;
 
-    if (klist_init(obj, len, data) < 0) {
-        KOBJ_DECREF(obj);
-        return NULL;
-    }
+    obj->cap = obj->len = 0;
+    obj->data = NULL;
 
-    if (klist_pushn(obj, len, data) < 0) {
+    if (klist_pushz(obj, len, data) < 0) {
         KOBJ_DECREF(obj);
         return NULL;
     }
 
     return obj;
 }
-
-
 
 KATA_API keno
 klist_init(struct klist* obj, usize len, kobj* data) {
@@ -87,25 +83,16 @@ klist_pushn(struct klist* obj, usize len, kobj* vals) {
 
 KATA_API keno
 klist_pushz(struct klist* obj, usize len, kobj* vals) {
-    if (obj->cap >= obj->len + len) {
-        // we have enough space
-        memcpy(obj->data + obj->len, vals, len * sizeof(kobj));
-        obj->len += len;
-        return 0;
+    if (obj->cap < obj->len + len) {
+        // we need to reallocate
+        if (!kmem_growx((void**)&obj->data, &obj->cap, sizeof(kobj) * (obj->len + len))) {
+            return -1;
+        }
     }
 
-    // we need to reallocate
-    if (!kmem_growx((void**)&obj->data, &obj->cap, sizeof(kobj) * (obj->len + len))) {
-        return -1;
-    }
-
-    // add to the array, but don't add reference
-    usize i;
-    for (i = 0; i < len; ++i) {
-        obj->data[obj->len + i] = vals[i];
-        //KOBJ_INCREF(vals[i]);
-    }
-
+    // we have enough space, so just copy to the end
+    memcpy(obj->data + obj->len, vals, len * sizeof(kobj));
+    obj->len += len;
     return 0;
 }
 
@@ -125,3 +112,28 @@ klist_popu(struct klist* obj) {
     return true;
 }
 
+static KCFUNC(klist_del_) {
+    klist obj;
+    KARGS("obj:!", &obj, Klist);
+
+    // free all entries
+    usize i;
+    for (i = 0; i < obj->len; ++i) {
+        KOBJ_DECREF(obj->data[i]);
+    }
+
+    kmem_free(obj->data);
+    kobj_del(obj);
+
+    return NULL;
+}
+
+
+KATA_API void
+kinit_list() {
+    ktype_init(Klist, sizeof(struct klist), "list", "List collection type");
+
+    ktype_merge(Klist, KDICT_IKV(
+        { "__del", kfunc_new(klist_del_, "list.__del(obj: list)", "") },
+    ));
+}
