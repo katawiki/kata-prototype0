@@ -10,6 +10,7 @@ Kglobals
 ;
 
 kstr
+Ksc_repr,
 Ksc_new,
 Ksc_del 
 ;
@@ -94,6 +95,7 @@ kinit(bool fail_on_err) {
 
     Ksys_rawio->sz = sizeof(struct ksys_rawio);
 
+    Ksc_repr = kstr_new(-1, "__repr");
     Ksc_new = kstr_new(-1, "__new");
     Ksc_del = kstr_new(-1, "__del");
 
@@ -114,7 +116,7 @@ kinit(bool fail_on_err) {
     kinit_dict();
     
     kinit_func();
-
+    kinit_exc();
 
     Kglobals = kdict_new(KDICT_IKV(
         { "int", Kint },
@@ -141,6 +143,22 @@ kexit(keno rc) {
     }
 }
 
+KATA_API void
+kthrow(const char* filename, int line, const char* funcname, ktype tp, const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    kthrowv(filename, line, funcname, tp, fmt, ap);
+    va_end(ap);
+
+}
+KATA_API void
+kthrowv(const char* filename, int line, const char* funcname, ktype tp, const char* fmt, va_list ap) {
+
+
+
+}
+
+
 KATA_API kobj
 kobj_make(ktype tp) {
     assert(tp != NULL);
@@ -153,6 +171,12 @@ kobj_make(ktype tp) {
     meta->refc = 1;
 
     return KOBJ_UNMETA(meta);
+}
+
+KATA_API kobj
+kobj_newref(kobj obj) {
+    KOBJ_INCREF(obj);
+    return obj;
 }
 
 KATA_API void
@@ -189,41 +213,52 @@ kobj_del(kobj obj) {
     kmem_free(KOBJ_META(obj));
 }
 
-
-
-KATA_API keno
+KATA_API bool
 kobj_getu(kobj obj, u64* out) {
     ktype tp = KOBJ_TYPE(obj);
     if (tp == Kint) {
 
-    } else {
-        
     }
 
-
+    return false;
 }
 
-KATA_API keno
+KATA_API bool
 kobj_gets(kobj obj, s64* out) {
+    ktype tp = KOBJ_TYPE(obj);
 
+    if (tp == Kint) {
+        int64_t tmp;
+        if (bf_get_int64(&tmp, &((kint)obj)->val, 0) != 0) {
+            // overflow
+            kexit(-1);
+            return -1;
+        }
+
+        // now, convert        
+        *out = tmp;
+        return true;
+    }
+
+    return false;
 }
 
-KATA_API keno
+KATA_API bool
 kobj_getf(kobj obj, f64* out) {
 
 }
 
-KATA_API keno
+KATA_API bool
 kobj_getc(kobj obj, f64* outre, f64* outim) {
 
 }
 
-KATA_API keno
+KATA_API bool
 kobj_hash(kobj obj, usize* out) {
 
 }
 
-KATA_API keno
+KATA_API bool
 kobj_eq(kobj a, kobj b, bool* out) {
 
 }
@@ -311,6 +346,8 @@ kargsv(s32 nargs, kobj* vargs, const char* fmt, va_list ap) {
         if (j == 0) {
             break;
         }
+
+        //printf("NAME: '%s'\n", name);
 
         // pointer to the argument destination
         void* parg = va_arg(ap, void*);
@@ -591,8 +628,23 @@ kwriteS(kobj io, kobj obj) {
 KATA_API ssize
 kwriteR(kobj io, kobj obj) {
     ktype tp = KOBJ_TYPE(obj);
-    if (tp == Kstr) {
+    if (tp->fn_repr != NULL) {
+        kobj res = kqcall(tp->fn_repr, 2, (kobj[]){ obj, io });
+        if (!res) return -1;
+
+        // now, extract 64 bit number out of it
+        s64 r;
+        if (!kobj_gets(res, &r)) {
+            KOBJ_DECREF(res);
+            return -1;
+        }
+
+        KOBJ_DECREF(res);
+        return r;
+
+    } else if (tp == Kstr) {
         return mywrite_stresc(io, ((kstr)obj)->lenb, ((kstr)obj)->data);
+
     } else if (tp == Kint) {
         // TODO: faster ways to dump?
         size_t len;
@@ -709,7 +761,6 @@ kwriteR(kobj io, kobj obj) {
         rsz += sz;
         return rsz;
 
-
     } else {
         // TODO
         kexit(-1);
@@ -806,6 +857,11 @@ kprintfv(kobj io, const char* fmt, va_list args) {
             if ((c = *fmt++) == '%') {
                 // literal '%' character
                 sz = kwrite(io, 1, "%");
+                if (sz < 0) return sz;
+                rsz += sz;
+            } else if (c == 'i') {
+                int val = va_arg(args, int);
+                sz = kwrites(io, val, 10, width);
                 if (sz < 0) return sz;
                 rsz += sz;
             } else if (c == 'u') {

@@ -94,7 +94,6 @@ static KCFUNC(kint_del_) {
 
     bf_delete(&obj->val);
     kobj_del(obj);
-
     return NULL;
 }
 

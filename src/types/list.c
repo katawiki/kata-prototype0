@@ -21,7 +21,7 @@ klist_new(usize len, kobj* data) {
         return NULL;
     }
 
-    if (klist_pushn(obj, len, data) < 0) {
+    if (klist_pushx(obj, len, data) < 0) {
         KOBJ_DECREF(obj);
         return NULL;
     }
@@ -49,7 +49,7 @@ KATA_API keno
 klist_init(struct klist* obj, usize len, kobj* data) {
     obj->len = obj->cap = 0;
     obj->data = NULL;
-    if (klist_pushn(obj, len, data) < 0) {
+    if (klist_pushx(obj, len, data) < 0) {
         klist_done(obj);
         return -1;
     }
@@ -62,29 +62,34 @@ klist_done(struct klist* obj) {
     kmem_free(obj->data);
 }
 
-KATA_API keno
+KATA_API bool
 klist_push(struct klist* obj, kobj val) {
-    return klist_pushn(obj, 1, &val);
+    return klist_pushx(obj, 1, &val);
 }
 
 KATA_API keno
-klist_pushn(struct klist* obj, usize len, kobj* vals) {
-    keno rc = klist_pushz(obj, len, vals);
-    if (rc < 0) return rc;
-
-    // add references
-    usize i;
-    for (i = 0; i < len; ++i) {
-        KOBJ_INCREF(vals[i]);
+klist_pushx(struct klist* obj, usize len, kobj* vals) {
+    // check if reallocation is needed
+    if (obj->cap < obj->len + len) {
+        if (!kmem_growx((void**)&obj->data, &obj->cap, sizeof(kobj) * (obj->len + len))) {
+            return -1;
+        }
     }
 
-    return rc;
+    // copy and increment references
+    usize i;
+    for (i = 0; i < len; ++i) {
+        obj->data[obj->len + i] = vals[i];
+        KOBJ_INCREF(vals[i]);
+    }
+    obj->len += len;
+    return 0;
 }
 
 KATA_API keno
 klist_pushz(struct klist* obj, usize len, kobj* vals) {
+    // check if reallocation is needed
     if (obj->cap < obj->len + len) {
-        // we need to reallocate
         if (!kmem_growx((void**)&obj->data, &obj->cap, sizeof(kobj) * (obj->len + len))) {
             return -1;
         }

@@ -172,6 +172,9 @@ typedef void*          kobj;
 // TODO: what to do if building without ARC/refcounting?
 #define KOBJ_REFC(_obj_) KOBJ_META(_obj_)->refc
 
+// helper macro to get a new reference to an object (useful for readability)
+#define KOBJ_NEWREF(obj_) (kobj_newref((kobj)(obj_)))
+
 // increment reference count
 #define KOBJ_INCREF(obj_) do { \
     KOBJ_REFC(obj_)++; \
@@ -442,11 +445,17 @@ kbuffer_push(struct kbuffer* obj, usize len, const u8* data);
 KATA_API keno
 kbuffer_pop(struct kbuffer* obj, usize len);
 
+// return a string of the buffer contents
+KATA_API kstr
+kbuffer_str(struct kbuffer* obj);
+// return a string of the buffer contents, and decref it (useful in some locations)
+KATA_API kstr
+kbuffer_strz(kbuffer obj);
+
 
 // make new list
 KATA_API klist
 klist_new(usize len, kobj* data);
-
 // make new list, absorbing references from 'data'
 KATA_API klist
 klist_newz(usize len, kobj* data);
@@ -462,16 +471,16 @@ KATA_API void
 klist_done(struct klist* obj);
 
 // push 'val' to the end of the list
-KATA_API keno
+KATA_API bool
 klist_push(struct klist* obj, kobj val);
 
-// push 'vals' to the end of the list
+// expert interface, that pushes 'vals' to the end
 KATA_API keno
-klist_pushn(struct klist* obj, usize len, kobj* vals);
-// push 'vals' to the end of the list, absorbing references
+klist_pushx(struct klist* obj, usize len, kobj* vals);
+// expert interface, that pushes 'vals' to the end, and absorbs 
+//   the references (i.e. you should NOT DECREF any of 'vals' after this)
 KATA_API keno
 klist_pushz(struct klist* obj, usize len, kobj* vals);
-
 
 // pop an object from the end of the list
 KATA_API kobj
@@ -496,32 +505,33 @@ struct kdict_ikv {
 #define KDICT_IKV(...) ((struct kdict_ikv[]){ __VA_ARGS__ { NULL, NULL } })
 
 
-// make a new dict
-// NOTE: newz absrbs references to 'ikv's vals
+// make a new dict, absrbing references to 'ikv's vals
 KATA_API kdict
 kdict_new(struct kdict_ikv* ikv);
+
+// make a new dict, absrbing references to 'ikv's vals
 KATA_API kdict
 kdict_newz(struct kdict_ikv* ikv);
 
 // merge in 'ikv' over 'obj', replacing any keys
 // NOTE: mergez absorbs the references to 'ikv's values
-KATA_API keno
+KATA_API bool
 kdict_merge(struct kdict* obj, struct kdict_ikv* ikv);
-KATA_API keno
+KATA_API bool
 kdict_mergez(struct kdict* obj, struct kdict_ikv* ikv);
 
 // get the value of the given key, or NULL if not found
 // NOTE: this can return successfully, but the value will be NULL if it wasn't found
-KATA_API keno
+KATA_API bool
 kdict_get(struct kdict* obj, kobj key, kobj* val);
 KATA_API keno
-kdict_geth(struct kdict* obj, kobj key, usize hash, kobj* val);
+kdict_getx(struct kdict* obj, kobj key, usize hash, kobj* val);
 
 // set the value of the given key to 'val'
-KATA_API keno
+KATA_API bool
 kdict_set(struct kdict* obj, kobj key, kobj val);
 KATA_API keno
-kdict_seth(struct kdict* obj, kobj key, usize hash, kobj val);
+kdict_setx(struct kdict* obj, kobj key, usize hash, kobj val);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -648,6 +658,10 @@ typedef struct ktype {
 
     kobj fn_init, fn_done;
 
+    // <type>.__repr(obj, io)->s64
+    //   function that adds 'repr(obj)' to 'io', and returns the number of bytes read
+    kobj fn_repr;
+
 }* ktype;
 
 // helper macro to declare a statically allocated type
@@ -701,6 +715,29 @@ struct kframe {
 
 };
 
+
+// Kata exception, which is the datatype used for many of the warning/error/info types
+typedef struct kexc {
+
+    // the message of the exception
+    kstr msg;
+
+    // the arguments to the exception (often is empty tuple)
+    ktuple args;
+
+}* kexc;
+
+// create a new exception with the given type (which MUST be a type created with 'struct kexc'
+//   as the datatype!) and printf-style string
+// NOTE: pass 'args=NULL' for no arguments
+KATA_API kexc
+kexc_new(ktype tp, s32 nargs, kobj* vargs, const char* fmt, ...);
+KATA_API kexc
+kexc_newv(ktype tp, s32 nargs, kobj* vargs, const char* fmt, va_list ap);
+
+
+
+
 // Kata thread, which is a first-class object containing runtime information
 typedef struct kthread {
 
@@ -726,11 +763,11 @@ KATA_API kthread
 kthread_get();
 
 // add a new frame
-KATA_API keno
+KATA_API bool
 kthread_push_frame(struct kthread* obj, kobj fn, usize nargs, kobj* args);
 
 // pop the current frame
-KATA_API keno
+KATA_API bool
 kthread_pop_frame(struct kthread* obj);
 
 
@@ -762,6 +799,7 @@ Kthread
 
 // special string constants
 KATA_API kstr
+Ksc_repr, // '__repr'
 Ksc_new, // '__new'
 Ksc_del  // '__del'
 ;
@@ -795,6 +833,17 @@ kinit(bool fail_on_err);
 KATA_API void
 kexit(keno rc);
 
+// helper macro to throw
+#define KTHROW(tp_, fmt_, ...) do { \
+   kthrow(__FILE__, __LINE__, NULL, tp_, fmt_, ##__VA_ARGS__); \
+} while (0)
+
+// throw a C-style psuedo-exception, with the given metadata
+// NOTE: don't call this directly, instead call 'KTHROW()' macro
+KATA_API void
+kthrow(const char* filename, int line, const char* funcname, ktype tp, const char* fmt, ...);
+KATA_API void
+kthrowv(const char* filename, int line, const char* funcname, ktype tp, const char* fmt, va_list ap);
 
 
 // call 'fn(*args)', return a reference to the result or NULL if an exception
@@ -864,6 +913,7 @@ kwriteR(kobj io, kobj obj);
 //   %u: u64 value
 //   %s: s64 value
 //   %f: f64 value
+//   %i: 'int' value
 //   %O: kobj value, outputs '<TYPE @ ADDR>'
 //   %B: kobj value, outputs 'bytes(val)'
 //   %S: kobj value, outputs 'str(val)'
@@ -881,6 +931,11 @@ kprintfv(kobj io, const char* fmt, va_list args);
 KATA_API kobj
 kobj_make(ktype tp);
 
+// return a new reference to 'obj'
+KATA_API kobj
+kobj_newref(kobj obj);
+
+
 // free an object, according to its type constructor
 // NOTE: do not call this directly, use 'KOBJ_DECREF()' instead
 KATA_API void
@@ -891,22 +946,23 @@ KATA_API void
 kobj_del(kobj obj);
 
 // get the value of an object converted to a particular C-style value
-// NOTE: returns 0 on success, <0 on failure, and >0 with metadata
-KATA_API keno
+KATA_API bool
 kobj_getu(kobj obj, u64* out);
-KATA_API keno
+KATA_API bool
 kobj_gets(kobj obj, s64* out);
-KATA_API keno
+KATA_API bool
 kobj_getf(kobj obj, f64* out);
-KATA_API keno
+KATA_API bool
 kobj_getc(kobj obj, f64* outre, f64* outim); // complex numbers
 
 // calculate 'hash(obj)' and store in '*out'
-KATA_API keno
+KATA_API bool
 kobj_hash(kobj obj, usize* out);
 
 // calculate whether a==b, and store in '*out'
-KATA_API keno
+// NOTE; the return value merely indicates whether the operation completed,
+//         not whether the result is true or false
+KATA_API bool
 kobj_eq(kobj a, kobj b, bool* out);
 
 

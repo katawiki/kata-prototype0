@@ -60,3 +60,15 @@ kbuffer_pop(struct kbuffer* obj, usize len) {
     obj->len -= len;
     return 0;
 }
+
+KATA_API kstr
+kbuffer_str(struct kbuffer* obj) {
+    return kstr_new(obj->len, obj->data);
+}
+
+KATA_API kstr
+kbuffer_strz(kbuffer obj) {
+    kstr res = kbuffer_str(obj);
+    KOBJ_DECREF(obj);
+    return res;
+}

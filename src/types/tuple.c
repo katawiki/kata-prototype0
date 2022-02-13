@@ -54,7 +54,6 @@ static KCFUNC(ktuple_del_) {
     }
 
     kobj_del(obj);
-
     return NULL;
 }
 

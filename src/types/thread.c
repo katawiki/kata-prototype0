@@ -16,15 +16,15 @@ kthread_get() {
 
 }
 
-KATA_API keno
+KATA_API bool
 kthread_push_frame(struct kthread* obj, kobj fn, usize nargs, kobj* args) {
 
 }
 
-KATA_API keno
+KATA_API bool
 kthread_pop_frame(struct kthread* obj) {
     if (obj->stk_frame_len == 0) {
-        return -1;
+        return false;
     }
 
     struct kframe* frm = &obj->stk_frame[--obj->stk_frame_len];
@@ -37,5 +37,5 @@ kthread_pop_frame(struct kthread* obj) {
         KOBJ_DECREF(frm->args[i]);
     }
 
-    return 0;
+    return true;
 }

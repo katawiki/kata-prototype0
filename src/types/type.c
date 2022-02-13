@@ -42,10 +42,12 @@ ktype_merge(ktype tp, struct kdict_ikv* ikv) {
         // TODO: use a hash table?
         if (kstr_cmp(key, Ksc_del) == 0) {
             tp->fn_del = ikv->val;
+        } else if (kstr_cmp(key, Ksc_repr) == 0) {
+            tp->fn_repr = ikv->val;
         }
 
         // always set manually to the dictionary
-        if (kdict_seth(tp->attr, key, key->hash, ikv->val) < 0) {
+        if (kdict_setx(tp->attr, key, key->hash, ikv->val) < 0) {
             kexit(-1);
         }
 

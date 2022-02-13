@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
     KOBJ_DECREF(l);
 
     // create a dict, absorbing object references
-    kdict d = kdict_new(KDICT_IKV(
+    kdict d = kdict_newz(KDICT_IKV(
         { "foobar", (kobj)kint_new("12345", 10) },
         { "blahblah", (kobj)kstr_new(-1, "some useless info...") },
         { "blah", (kobj)kstr_new(-1, "even more useless info") },

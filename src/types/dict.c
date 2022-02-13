@@ -78,6 +78,7 @@ my_search(struct kdict* obj, kobj key, usize hash, ssize* rbi, ssize* rei) {
     KDICT_PER_BUKS(obj, obj->buks_len, {
         do {
             ssize ei = BUKS[bi];
+
             if (ei == BUK_EMPTY) {
                 // hit an empty bucket, so the key was not present
                 // however, it can be inserted at this bucket index, so signal that
@@ -92,8 +93,11 @@ my_search(struct kdict* obj, kobj key, usize hash, ssize* rbi, ssize* rei) {
                 bool is_eq = obj->ents[ei].key == key;
                 if (!is_eq) {
                     // different objects, so find out dynamically
-                    if (!kobj_eq(obj->ents[ei].key, key, &is_eq)) return false;
+                    if (!kobj_eq(obj->ents[ei].key, key, &is_eq)) {
+                        return false;
+                    }
                 }
+
 
                 if (is_eq) {
                     // found a match, so signal the position
@@ -190,6 +194,7 @@ my_resize(struct kdict* obj, usize new_buks_len) {
 
 KTYPE_DECL(Kdict);
 
+
 KATA_API kdict
 kdict_new(struct kdict_ikv* ikv) {
     kdict obj = kobj_make(Kdict);
@@ -201,7 +206,7 @@ kdict_new(struct kdict_ikv* ikv) {
     obj->ents_cap = obj->ents_len = obj->ents_real = 0;
     obj->ents = NULL;
 
-    if (kdict_merge(obj, ikv) < 0) {
+    if (ikv && !kdict_merge(obj, ikv)) {
         KOBJ_DECREF(obj);
         return NULL;
     }
@@ -220,122 +225,115 @@ kdict_newz(struct kdict_ikv* ikv) {
     obj->ents_cap = obj->ents_len = obj->ents_real = 0;
     obj->ents = NULL;
 
-    if (kdict_mergez(obj, ikv) < 0) {
+    if (ikv && !kdict_mergez(obj, ikv)) {
         KOBJ_DECREF(obj);
         return NULL;
     }
 
     return obj;
 }
-KATA_API keno
+
+
+KATA_API bool
 kdict_merge(struct kdict* obj, struct kdict_ikv* ikv) {
-    if (!ikv) return 0;
-    
-    // now, add all elements
+    // iterate and add all elements
     struct kdict_ikv* it = ikv;
-    while (it->key != NULL) {
+    while (it && it->key != NULL) {
         kstr okey = kstr_new(-1, it->key);
 
-        if (!okey || kdict_seth(obj, (kobj)okey, okey->hash, it->val) < 0) {
+        if (!okey || kdict_setx(obj, (kobj)okey, okey->hash, it->val) < 0) {
             if (okey) KOBJ_DECREF(okey);
-            KOBJ_DECREF(it->val);
-
-            // remove references to other values that have not been eliminated
-            while (it->key != NULL) {
-                KOBJ_DECREF(it->val);
-                it++;
-            }
-            return -1;
+            return false;
         }
 
         KOBJ_DECREF(okey);
-
         it++;
     }
 
-    return 0;
+    return true;
 }
-
-KATA_API keno
+KATA_API bool
 kdict_mergez(struct kdict* obj, struct kdict_ikv* ikv) {
-    if (!ikv) return 0;
-    
-    // now, add all elements
+    // iterate and add all elements
     struct kdict_ikv* it = ikv;
-    while (it->key != NULL) {
+    while (it && it->key != NULL) {
         kstr okey = kstr_new(-1, it->key);
-
-        if (!okey || kdict_seth(obj, (kobj)okey, okey->hash, it->val) < 0) {
+        if (!okey || kdict_setx(obj, (kobj)okey, okey->hash, it->val) < 0) {
             if (okey) KOBJ_DECREF(okey);
-            KOBJ_DECREF(it->val);
-
-            // remove references to other values that have not been eliminated
+    
+            // remove references since we are absorbing them
             while (it->key != NULL) {
                 KOBJ_DECREF(it->val);
                 it++;
             }
-            return -1;
+            return false;
         }
 
         KOBJ_DECREF(okey);
-        KOBJ_DECREF(ikv->val);
+
+        // remove reference, since we're not absorbing it
+        KOBJ_DECREF(it->val);
 
         it++;
     }
 
-    return 0;
-}
-
-KATA_API keno
-kdict_get(struct kdict* obj, kobj key, kobj* val) {
-    usize hash;
-    if (!kobj_hash(key, &hash)) return -1;
-    return kdict_geth(obj, key, hash, val);
-}
-
-KATA_API keno
-kdict_geth(struct kdict* obj, kobj key, usize hash, kobj* val) {
-    // search for the key
-    ssize bi, ei;
-    if (!my_search(obj, key, hash, &bi, &ei)) return false;
-
-    // if the key was not found, then return NULL
-    if (ei < 0) return false;
-
-    // otherwise, return the value
-    *val = obj->ents[ei].val;
     return true;
 }
 
-KATA_API keno
-kdict_set(struct kdict* obj, kobj key, kobj val) {
+KATA_API bool
+kdict_get(struct kdict* obj, kobj key, kobj* val) {
     usize hash;
-    if (!kobj_hash(key, &hash)) return -1;
-    return kdict_seth(obj, key, hash, val);
+    if (!kobj_hash(key, &hash)) return false;
+    return kdict_getx(obj, key, hash, val) >= 0;
 }
 
 KATA_API keno
-kdict_seth(struct kdict* obj, kobj key, usize hash, kobj val) {
+kdict_getx(struct kdict* obj, kobj key, usize hash, kobj* val) {
+    // search for the key
+    ssize bi, ei;
+    if (!my_search(obj, key, hash, &bi, &ei)) return -1;
+
+    // if the key was not found, then return NULL
+    if (ei < 0) return -1;
+
+    // otherwise, return the value
+    *val = obj->ents[ei].val;
+    return 0;
+}
+
+KATA_API bool
+kdict_set(struct kdict* obj, kobj key, kobj val) {
+    usize hash;
+    if (!kobj_hash(key, &hash)) return false;
+    return kdict_setx(obj, key, hash, val) >= 0;
+}
+
+KATA_API keno
+kdict_setx(struct kdict* obj, kobj key, usize hash, kobj val) {
     // resize if needed
-    if (my_load(obj) > LOAD_MAX || obj->buks_len == 0) {
+    if (my_load(obj) > LOAD_MAX || obj->buks_len < obj->ents_len + 3) {
         if (!my_resize(obj, (usize)(1 + (double)obj->ents_len / LOAD_NEW))) {
-            return false;
+            return -1;
         }
     }
 
     // search for the key
     ssize bi, ei;
-    if (!my_search(obj, key, hash, &bi, &ei)) return false;
+    if (!my_search(obj, key, hash, &bi, &ei)) {
+        return -1;
+    }
 
     if (ei < 0) {
         // key not found, so insert it
-        ei = obj->ents_len++;
-        if (obj->ents_len > obj->ents_cap) {
-            obj->ents_cap = kmem_nextcap(obj->ents_cap, obj->ents_len);
+        ei = obj->ents_len;
+        usize newlen = obj->ents_len + 1;
+        if (newlen > obj->ents_cap) {
+            obj->ents_cap = kmem_nextcap(obj->ents_cap, newlen);
             if (!kmem_grow((void**)&obj->ents, sizeof(*obj->ents) * obj->ents_cap)) {
-                return false;
+                return KENO_ERR_OOM;
             }
         }
+        obj->ents_len = newlen;
         
         // add to entries
         obj->ents_real++;
@@ -350,11 +348,21 @@ kdict_seth(struct kdict* obj, kobj key, usize hash, kobj val) {
         //   when we are expanding past the size limit of the current bucket size
         if (bi < 0 || (obj->ents_len == U8_MAX-2 || obj->ents_len == U16_MAX-2 || obj->ents_len == U32_MAX-2)) {
             if (!my_resize(obj, (usize)(1 + (double)obj->ents_len / LOAD_NEW))) {
-                return false;
+                obj->ents_len--;
+                obj->ents_real--;
+                KOBJ_DECREF(key);
+                KOBJ_DECREF(val);
+                return KENO_ERR_OOM;
             }
 
             ssize new_ei;
-            if (!my_search(obj, key, hash, &bi, &new_ei)) return false;
+            if (!my_search(obj, key, hash, &bi, &new_ei)) {
+                obj->ents_len--;
+                obj->ents_real--;
+                KOBJ_DECREF(key);
+                KOBJ_DECREF(val);
+                return -1;
+            }
             assert(bi >= 0);
             assert(new_ei == ei);
         }
@@ -364,13 +372,13 @@ kdict_seth(struct kdict* obj, kobj key, usize hash, kobj val) {
             BUKS[bi] = ei;
         });
 
-        return true;
+        return 0;
     } else {
         // found, so replace the value
         KOBJ_INCREF(val);
         KOBJ_DECREF(obj->ents[ei].val);
         obj->ents[ei].val = val;
-        return true;
+        return 0;
     }
 }
 

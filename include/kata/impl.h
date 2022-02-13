@@ -38,6 +38,8 @@ kinit_dict();
 KATA_API void
 kinit_func();
 
+KATA_API void
+kinit_exc();
 
 // module initializers
 KATA_API void
