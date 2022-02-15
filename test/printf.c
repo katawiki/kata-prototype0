@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
     assert(kprintf(Ksys_stdout, "hw: %R\n", (kobj)xyz) >= 0);
     KOBJ_DECREF(xyz);
 
-    kint x = kint_new("11234128364921612387642197642917542795492144264912653423", 10);
+    kint x = kint_new("11223344556677889910101111121213131414151516161717181819192020", 10);
     assert(x != NULL);
     assert(kprintf(Ksys_stdout, "x: %R\n", (kobj)x) >= 0);
     KOBJ_DECREF(x);
