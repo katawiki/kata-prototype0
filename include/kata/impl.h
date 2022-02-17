@@ -45,9 +45,9 @@ kinit_exc();
 KATA_API void
 kinit_mem();
 KATA_API void
-kinit_sys();
+kinit_os();
 KATA_API void
-kinit_sys_rawio();
+kinit_os_rawio();
 
 KATA_API void
 kinit_ks();

@@ -971,6 +971,6 @@ kobj_eq(kobj a, kobj b, bool* out);
 
 // standard modules
 #include <kata/mem.h>
-#include <kata/sys.h>
+#include <kata/os.h>
 
 #endif // KATA_API_H

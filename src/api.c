@@ -93,7 +93,7 @@ kinit(bool fail_on_err) {
 
     Kfunc->sz = sizeof(struct kfunc);
 
-    Ksys_rawio->sz = sizeof(struct ksys_rawio);
+    Kos_rawio->sz = sizeof(struct kos_rawio);
 
     Ksc_repr = kstr_new(-1, "__repr");
     Ksc_new = kstr_new(-1, "__new");
@@ -126,7 +126,7 @@ kinit(bool fail_on_err) {
     ));
 
     kinit_mem();
-    kinit_sys();
+    kinit_os();
     kinit_ks();
 
     return true;
@@ -442,9 +442,9 @@ kread(kobj io, usize len, void* data) {
         tio->pos += rsz;
 
         return rsz;
-    } else if (tp == Ksys_rawio) {
+    } else if (tp == Kos_rawio) {
         // C-style read
-        ksys_rawio tio = (ksys_rawio)io;
+        kos_rawio tio = (kos_rawio)io;
         ssize rsz = read(tio->fd_, data, len);
         if (rsz < 0) return -1;
 
@@ -480,9 +480,9 @@ kwrite(kobj io, usize len, const void* data) {
         tio->pos += rsz;
 
         return rsz;
-    } else if (tp == Ksys_rawio) {
+    } else if (tp == Kos_rawio) {
         // C-style write
-        ksys_rawio tio = (ksys_rawio)io;
+        kos_rawio tio = (kos_rawio)io;
         ssize rsz = write(tio->fd_, data, len);
         if (rsz < 0) return -1;
 
