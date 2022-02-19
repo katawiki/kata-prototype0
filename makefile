@@ -1,5 +1,6 @@
 # makefile - build system for the 'UNIX' platform
 #
+# TODO: `make web`
 # for the web platform, `make -f web.make`
 #
 # * https://stackoverflow.com/questions/52653025/why-is-march-native-used-so-rarely
@@ -27,10 +28,12 @@ SRC_C       += $(wildcard src/types/*.c)
 
 # add modules
 SRC_C       += $(wildcard src/os/*.c)
+SRC_C       += $(wildcard src/bf/*.c)
+
+SRC_C       += $(wildcard src/ks/*.c)
+
 SRC_C       += $(wildcard src/mem/*.c)
 SRC_C       += $(wildcard src/io/*.c)
-SRC_C       += $(wildcard src/bf/*.c)
-SRC_C       += $(wildcard src/ks/*.c)
 
 # C headers
 SRC_H       := $(wildcard include/kata/*.h)

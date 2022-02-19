@@ -52,6 +52,8 @@ kinit_os_rawio();
 KATA_API void
 kinit_ks();
 KATA_API void
+kinit_ks_token();
+KATA_API void
 kinit_ks_ast();
 
 

@@ -65,19 +65,22 @@ ks_lex(kstr filename, kstr src, ks_token** ptoks) {
     s32 res = 0, res_max = 0;
 
     // DO NOT OVERWRITE THESE, they are used in 'ADV()'
-    kucp c;
     s32 i = 0, line = 0, col = 0;
+
+    // current byte/character
+    #define CUR (src->data[i])
+    // next byte
+    #define NEXT (src->data[i+1])
 
     // advance one character, writing to 'c'
     #define ADV() do { \
         if (i >= src->lenb) break; \
-        if (c == '\n') { \
+        if (CUR == '\n') { \
             line++; \
             col = 0; \
         } else { \
             col++; \
         } \
-        c = src->data[i]; \
         i++; \
     } while (0)
 
@@ -93,90 +96,111 @@ ks_lex(kstr filename, kstr src, ks_token** ptoks) {
         (*ptoks)[res++] = tok; \
     } while (0)
 
+
+
     // TODO: unicode?
     while (i < src->lenb) {
 
-        // read in a character
-        ADV();
-
         s32 i_start = i, line_start = line, col_start = col;
 
-        if (c == ' ' || c == '\t' || c == '\v' || c == '\n') {
+        // read in a character
+        if (CUR == ' ' || CUR == '\t' || CUR == '\v' || CUR == '\n') {
             // ignore, whitespace
-        } else if (c == '#') {
+            ADV();
+        } else if (CUR == '#') {
             // comment, so skip to the end of the next line
-            while (i < src->lenb) {
-                if (src->data[i] == '\n') break;
+            while (i < src->lenb && CUR != '\n') {
                 ADV();
             }
 
             EMIT(KS_TOKEN_COMMENT);
-        } else if (myis_digit(c, 10) || (c == '.' && myis_digit(src->data[i], 10))) {
+        } else if (myis_digit(CUR, 10) || (CUR == '.' && myis_digit(NEXT, 10))) {
             // either a number beginning with a digit, or possibly with '.'
             // TODO: should that be invalid syntax?
 
             // attempt to autodetect base
             s32 base = 0;
-            if (c == '0') {
+            if (CUR == '0') {
                 ADV();
-                /**/ if (c == 'b' || c == 'B') base = 2;
-                else if (c == 'o' || c == 'O') base = 8;
-                else if (c == 'x' || c == 'X') base = 16;
+                /**/ if (CUR == 'b' || CUR == 'B') base = 2;
+                else if (CUR == 'o' || CUR == 'O') base = 8;
+                else if (CUR == 'x' || CUR == 'X') base = 16;
                 if (base != 0) ADV();
             }
             if (!base) base = 10;
 
             // now, skip all digits until we hit a non-digit
-            while (i < src->lenb && myis_digit(c, base)) {
+            while (myis_digit(CUR, base)) {
                 ADV();
             }
             
             // if we hit '.', then we have a float
-            bool is_float = c == '.';
+            bool is_float = CUR == '.';
             if (is_float) {
-                ADV();
                 // skip fractional component
-                while (i < src->lenb && myis_digit(c, base)) {
+                while (myis_digit(CUR, base)) {
                     ADV();
                 }
             }
 
-            if (base == 10 && (c == 'e' || c == 'E')) {
+            if (base == 10 && (CUR == 'e' || CUR == 'E')) {
                 // scientific decimal notation
                 // TODO: should this make it a float?
-                is_float = true;
                 ADV();
+                is_float = true;
                 // skip sign of number
-                if (c == '+' || c == '-') ADV();
+                if (CUR == '+' || CUR == '-') ADV();
                 // skip digits of exponent
-                while (i < src->lenb && myis_digit(c, 10)) {
+                while (myis_digit(CUR, 10)) {
                     ADV();
                 }
-            } else if ((base == 2 || base == 8 || base == 16) && (c == 'p' || c == 'P')) {
+            } else if ((base == 2 || base == 8 || base == 16) && (CUR == 'p' || CUR == 'P')) {
                 // scientific binary/octal/hex notation
                 // TODO: should this make it a float?
-                is_float = true;
                 ADV();
+                is_float = true;
                 // skip sign of number
-                if (c == '+' || c == '-') ADV();
+                if (CUR == '+' || CUR == '-') ADV();
                 // skip digits of exponent (which are always decimal)
-                while (i < src->lenb && myis_digit(c, 10)) {
+                while (i < src->lenb && myis_digit(CUR, 10)) {
                     ADV();
                 }
             }
 
             // if we hit 'i', we have an imaginary number
-            if (c == 'i' || c == 'I') {
-                is_float = true;
+            if (CUR == 'i' || CUR == 'I') {
                 ADV();
+                is_float = true;
             }
 
             EMIT(is_float ? KS_TOKEN_FLOAT : KS_TOKEN_INT);
-        } else {
-            fprintf(stderr, "ERROR: bad character: %c\n", (char)c);
+        }
+
+        #define CASE(kind_, str_) else if (strncmp(str_, src->data + i, sizeof(str_)-1) == 0) { \
+            int j; \
+            for (j = 0; j < (sizeof(str_)-1); ++j) { \
+                ADV(); \
+            } \
+            EMIT(kind_); \
+        }
+
+        CASE(KS_TOKEN_PLUS, "+")
+
+        else {
+            fprintf(stderr, "ERROR: bad character: %c\n", (char)CUR);
             kexit(-1);
             return -1;
         }
+    }
+
+    // emit a final EOF
+    s32 i_start = i, line_start = line, col_start = col;
+    EMIT(KS_TOKEN_EOF);
+
+
+    // debug print out them
+    for (i = 0; i < res; ++i) {
+        fprintf(stderr, "  toks[%i]: posb=%i, lenb=%i\n", (int)i, (int)(*ptoks)[i]->posb, (int)(*ptoks)[i]->lenb);
     }
 
     return res;

@@ -17,7 +17,9 @@ ks_token_new(s32 kind, s32 posb, s32 lenb, s32 line, s32 col, s32 lenc) {
     if (!obj) return NULL;
     
     obj->kind = kind;
+    
     obj->posb = posb;
+    obj->lenb = lenb;
 
     obj->line = line;
     obj->col = col;

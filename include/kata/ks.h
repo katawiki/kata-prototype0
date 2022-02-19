@@ -18,8 +18,8 @@
 
 enum {
 
-    // none/error kind
-    KS_TOKEN_NONE      = 0,
+    // end-of-file
+    KS_TOKEN_EOF       = 0,
 
     // ignorable line comment '# ...*'
     KS_TOKEN_COMMENT,
@@ -170,13 +170,46 @@ enum {
     // sub := (val: any, )
     KS_AST_VAL,
 
+    // a function call, indicated as:
+    // sub[0](*sub[1:]) = sub[0](sub[1], sub[2], ...)
+    KS_AST_CALL,
+
     // a name reference (variable, function, type, etc)
     // sub := (name: str, )
     KS_AST_NAME,
 
-    // a function call, indicated as:
-    // sub[0](*sub[1:]) = sub[0](sub[1], sub[2], ...)
-    KS_AST_CALL,
+    // 'import' block
+    // TODO: document how to configure
+    // sub := (name: ks.ast, config: ks.ast = none)
+    KS_AST_IMPORT,
+
+    // 'ret' block
+    // sub := (val: ks.ast, )
+    KS_AST_RET,
+
+    // 'throw' block
+    // sub := (val: ks.ast, )
+    KS_AST_THROW,
+
+
+    // block of statements
+    KS_AST_BLOCK,
+
+    // 'if' block
+    // sub := (cond: ks.ast, bodyT: ks.ast, bodyF: ks.ast = [], )
+    KS_AST_IF,
+
+    // 'while' block
+    // sub := (cond: ks.ast, bodyT: ks.ast, bodyF: ks.ast = [], )
+    KS_AST_WHILE,
+
+    // 'for' block
+    // sub := (cond: ks.ast, bodyT: ks.ast, bodyF: ks.ast = [], )
+    KS_AST_FOR,
+
+
+
+
 
 };
 
@@ -196,6 +229,9 @@ KATA_API ks_ast
 ks_ast_new(s32 kind, int nsub, kobj* sub);
 
 // create a new AST node, absorbing references to 'sub'
+// NOTE: this always removes the references to 'sub', and handles the case where
+//         some are NULL (if any NULLs are found, a reference is removed from others
+//         and no result is returned)
 KATA_API ks_ast
 ks_ast_newz(s32 kind, int nsub, kobj* sub);
 

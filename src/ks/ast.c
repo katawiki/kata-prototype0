@@ -24,6 +24,18 @@ ks_ast_new(s32 kind, int nsub, kobj* sub) {
 
 KATA_API ks_ast
 ks_ast_newz(s32 kind, int nsub, kobj* sub) {
+
+    // check for any NULLs and error out if thats the case
+    int i;
+    for (i = 0; i < nsub; ++i) {
+        if (!sub[i]) {
+            for (i = 0; i < nsub; ++i) {
+                if (sub[i] != NULL) KOBJ_DECREF(sub[i]);
+            }
+            return NULL;
+        }
+    }
+
     ks_ast obj = kobj_make(Ks_ast);
     if (!obj) return NULL;
 

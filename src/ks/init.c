@@ -10,6 +10,7 @@
 
 KATA_API void
 kinit_ks() {
+    kinit_ks_token();
     kinit_ks_ast();
 
 }
