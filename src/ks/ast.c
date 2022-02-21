@@ -12,18 +12,38 @@
 KTYPE_DECL(Ks_ast);
 
 KATA_API ks_ast
-ks_ast_new(s32 kind, int nsub, kobj* sub) {
+ks_ast_wrapx(ks_tok tok, u32 kind, kobj sub) {
     ks_ast obj = kobj_make(Ks_ast);
     if (!obj) return NULL;
 
     obj->kind = kind;
-    obj->sub = ktuple_new(nsub, sub);
+    KOBJ_NINCREF(tok);
+    obj->tok = tok;
+    obj->sub = sub;
 
     return obj;
 }
 
 KATA_API ks_ast
-ks_ast_newz(s32 kind, int nsub, kobj* sub) {
+ks_ast_wrap(ks_tok tok, kobj sub) {
+    return ks_ast_wrapx(tok, KS_AST_VAL, sub);
+}
+
+KATA_API ks_ast
+ks_ast_new(ks_tok tok, u32 kind, int nsub, kobj* sub) {
+    ks_ast obj = kobj_make(Ks_ast);
+    if (!obj) return NULL;
+
+    obj->kind = kind;
+    KOBJ_NINCREF(tok);
+    obj->tok = tok;
+    obj->sub = (kobj)ktuple_new(nsub, sub);
+
+    return obj;
+}
+
+KATA_API ks_ast
+ks_ast_newz(ks_tok tok, u32 kind, int nsub, kobj* sub) {
 
     // check for any NULLs and error out if thats the case
     int i;
@@ -40,15 +60,30 @@ ks_ast_newz(s32 kind, int nsub, kobj* sub) {
     if (!obj) return NULL;
 
     obj->kind = kind;
+    KOBJ_NINCREF(tok);
+    obj->tok = tok;
     obj->sub = ktuple_newz(nsub, sub);
 
     return obj;
 }
 
+KATA_API const char*
+ks_ast_kindname(u32 kind) {
+    switch (kind) {
+        case KS_AST_VAL: return "ks.ast.VAL";
+        case KS_AST_NAME: return "ks.ast.NAME";
+        case KS_AST_ADD: return "ks.ast.ADD";
+    }
+
+    return "ks.ast.UNKNOWN";
+}
+
+
 static KCFUNC(ks_ast_del_) {
     ks_ast obj;
     KARGS("obj:!", &obj, Ks_ast);
     
+    KOBJ_NDECREF(obj->tok);
     KOBJ_DECREF(obj->sub);
     kobj_del(obj);
     return NULL;
@@ -59,11 +94,17 @@ static KCFUNC(ks_ast_repr_) {
     kobj io;
     KARGS("obj:! io", &obj, Ks_ast, &io);
 
-    ssize res = kprintf(io, "ks.ast(%i, %R)", (int)obj->kind, obj->sub);
-    if (res < 0) return NULL;
+    switch (obj->kind) {
+        // TODO: should VAL even report that its an AST?
+        //case KS_AST_VAL: return krrv(kprintf(io, "ks.ast(%R)", obj->sub));
+        case KS_AST_VAL: return krrv(kprintf(io, "%R", obj->sub));
+        case KS_AST_NAME: return krrv(kprintf(io, "ks.ast.name(%R)", obj->sub));
+        case KS_AST_ADD: return krrv(kprintf(io, "ks.ast.add(%J)", obj->sub));
+        case KS_AST_MUL: return krrv(kprintf(io, "ks.ast.mul(%J)", obj->sub));
+    }
 
-    // return number of bytes
-    return kint_news(res);
+    return krrv(kprintf(io, "ks.ast(%s, %R)", ks_ast_kindname(obj->kind), obj->sub));
+
 }
 
 

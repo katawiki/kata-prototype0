@@ -19,6 +19,9 @@ ktype_init(ktype tp, s32 sz, const char* name, const char* docs) {
     meta->type = Ktype;
     meta->refc = 1;
 
+    // by default, no bf_t
+    tp->bfpos = -1;
+
     tp->sz = sz;
     tp->attr = kdict_new(NULL);
     assert(tp->attr != NULL);

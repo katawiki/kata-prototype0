@@ -180,12 +180,21 @@ typedef void*          kobj;
     KOBJ_REFC(obj_)++; \
 } while(0)
 
+#define KOBJ_NINCREF(obj_) do { \
+    if ((obj_) != NULL) KOBJ_INCREF(obj_); \
+} while(0)
+
+
 // decrement reference count
 #define KOBJ_DECREF(obj_) do { \
     kobj obj__ = (kobj)(obj_); \
     if (!--KOBJ_REFC(obj__)) { \
         kobj_free(obj__); \
     }; \
+} while(0)
+
+#define KOBJ_NDECREF(obj_) do { \
+    if ((obj_) != NULL) KOBJ_DECREF(obj_); \
 } while(0)
 
 
@@ -384,6 +393,10 @@ kint_news(s64 val);
 KATA_API kint
 kint_newf(f64 val);
 
+// take and absorb a valid 'bf_t' value
+KATA_API kint
+kint_newz(bf_t* val);
+
 
 // make a new float with the given value
 // NOTE: give 'prec=-1' to use whatever precision is neccessary to represent 'val'
@@ -409,6 +422,10 @@ kfloat_newf(f64 val);
 // NOTE: pass 'lenb=-1' to indicate that the string is NUL-terminated
 KATA_API kstr
 kstr_new(ssize lenb, const char* data);
+
+// create a string from a C-style varargs, see kprintf()
+KATA_API kstr
+kstr_fmt(const char* fmt, ...);
 
 // compare 'a' and 'b', returning:
 //   <0: when a<b
@@ -617,6 +634,12 @@ typedef struct ktype {
     //   like (obj)->int: a function that returns the size, in bytes for a given object
     //                      (for dynamically sized types, which is uncommon)
     s32 sz;
+
+    // the position of the 'bf_t' within the structure, or <0 if there is none
+    s32 bfpos;
+
+    // popular type traits, for efficiency are stored with the type
+    bool is_int, is_float;
 
     // attributes of the type, includes static variables, static functions, and member
     //   functions
@@ -845,6 +868,14 @@ kthrow(const char* filename, int line, const char* funcname, ktype tp, const cha
 KATA_API void
 kthrowv(const char* filename, int line, const char* funcname, ktype tp, const char* fmt, va_list ap);
 
+// C-style helper to return the integer number of bytes from a '__repr' implementation
+// this is a hook that will check the interpreter state. if the hook is available, this function will
+//   return 'none' and set the internal repr return length in the thread state, effectively saving
+//   an object copy and integer decode
+// if the thread state is not in a '__repr' implementation, this function will return a new 
+//   int object equivalent to res
+KATA_API kobj
+krrv(ssize res);
 
 // call 'fn(*args)', return a reference to the result or NULL if an exception
 //   was thrown
@@ -911,17 +942,21 @@ kwriteR(kobj io, kobj obj);
 
 // do a C-style printf to an IO-like object, where the following are respected:
 //   %u: u64 value
-//   %s: s64 value
+//   %v: s64 value
 //   %f: f64 value
 //   %i: 'int' value
+//   %s: 'char*' NULL-terminated value
 //   %O: kobj value, outputs '<TYPE @ ADDR>'
 //   %B: kobj value, outputs 'bytes(val)'
 //   %S: kobj value, outputs 'str(val)'
 //   %R: kobj value, outputs 'repr(val)'
+//   %J: kobj iterable, outputs '", ".join(val | repr)'
+//   %Y: kobj?, outputs ", %R" % (val, ) or nothing if it is NULL
 KATA_API ssize
 kprintf(kobj io, const char* fmt, ...);
 KATA_API ssize
 kprintfv(kobj io, const char* fmt, va_list args);
+
 
 
 /// object API ///
@@ -965,11 +1000,22 @@ kobj_hash(kobj obj, usize* out);
 KATA_API bool
 kobj_eq(kobj a, kobj b, bool* out);
 
+// check that a given object is of a particular type, returns the object if so
+//   otherwise an error is thrown and NULL is returned
+KATA_API void*
+kcheck(kobj obj, ktype tp);
+
+// compute 'a + b'
+KATA_API kobj
+kop_add(kobj a, kobj b);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 
+#include <kata/bf.h>
+
 // standard modules
+
 #include <kata/mem.h>
 #include <kata/os.h>
 

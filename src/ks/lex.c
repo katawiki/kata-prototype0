@@ -30,7 +30,7 @@ myis_digit(kucp c, s32 base) {
 
 // test if 'c' is a valid starting character of a name
 static bool
-myis_name_s(kucp c) {
+myis_names(kucp c) {
     if (c < 128) {
         if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_') return true;
     } else {
@@ -51,17 +51,16 @@ myis_name_s(kucp c) {
 static bool
 myis_name(kucp c) {
     if (myis_digit(c, 10)) return true;
-    if (myis_name_s(c)) return true;
+    if (myis_names(c)) return true;
 
     return false;
 }
 
 
-
 /// C API ///
 
 KATA_API s32
-ks_lex(kstr filename, kstr src, ks_token** ptoks) {
+ks_lex(kstr filename, kstr src, ks_tok** ptoks) {
     s32 res = 0, res_max = 0;
 
     // DO NOT OVERWRITE THESE, they are used in 'ADV()'
@@ -86,12 +85,12 @@ ks_lex(kstr filename, kstr src, ks_token** ptoks) {
 
     // emit a token, given the kind
     #define EMIT(kind_) do { \
-        ks_token tok = ks_token_new((kind_), i_start, i - i_start, line_start, col_start, col - col_start); \
+        ks_tok tok = ks_tok_new((kind_), i_start, i - i_start, line_start, col_start, col - col_start); \
         if (!tok) return -1; \
         s32 newres = res + 1; \
         if (newres > res_max) { \
-            res_max = 4 + (newres) * 3 / 2; \
-            if (!kmem_grow((void**)ptoks, sizeof(ks_token) * res_max)) return -1; \
+            res_max = newres * 2; \
+            if (!kmem_grow((void**)ptoks, sizeof(ks_tok) * res_max)) return -1; \
         } \
         (*ptoks)[res++] = tok; \
     } while (0)
@@ -113,7 +112,14 @@ ks_lex(kstr filename, kstr src, ks_token** ptoks) {
                 ADV();
             }
 
-            EMIT(KS_TOKEN_COMMENT);
+            EMIT(KS_TOK_COMMENT);
+        } else if (myis_names(CUR)) {
+            do {
+                ADV();
+            } while (myis_name(CUR));
+
+            EMIT(KS_TOK_NAME);
+
         } else if (myis_digit(CUR, 10) || (CUR == '.' && myis_digit(NEXT, 10))) {
             // either a number beginning with a digit, or possibly with '.'
             // TODO: should that be invalid syntax?
@@ -173,7 +179,7 @@ ks_lex(kstr filename, kstr src, ks_token** ptoks) {
                 is_float = true;
             }
 
-            EMIT(is_float ? KS_TOKEN_FLOAT : KS_TOKEN_INT);
+            EMIT(is_float ? KS_TOK_FLOAT : KS_TOK_INT);
         }
 
         #define CASE(kind_, str_) else if (strncmp(str_, src->data + i, sizeof(str_)-1) == 0) { \
@@ -184,7 +190,13 @@ ks_lex(kstr filename, kstr src, ks_token** ptoks) {
             EMIT(kind_); \
         }
 
-        CASE(KS_TOKEN_PLUS, "+")
+        CASE(KS_TOK_PLUS, "+")
+        CASE(KS_TOK_MINUS, "-")
+        CASE(KS_TOK_STAR, "*")
+        CASE(KS_TOK_SLASH, "/")
+
+
+
 
         else {
             fprintf(stderr, "ERROR: bad character: %c\n", (char)CUR);
@@ -195,7 +207,7 @@ ks_lex(kstr filename, kstr src, ks_token** ptoks) {
 
     // emit a final EOF
     s32 i_start = i, line_start = line, col_start = col;
-    EMIT(KS_TOKEN_EOF);
+    EMIT(KS_TOK_EOF);
 
 
     // debug print out them

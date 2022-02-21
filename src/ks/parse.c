@@ -159,11 +159,11 @@
 
 
 // helper macro to define a C-style rule function
-#define RULE(name_) static ks_ast name_(kstr filename, kstr src, s32 ntoks, ks_token* toks, s32* ptoki)
+#define RULE(name_) static ks_ast name_(kstr filename, kstr src, s32 ntoks, ks_tok* toks, s32* ptoki)
 
 // helper macro to define a C-style bool rule function, returns whether it matched or
 //   not (NOTE: this does not throw an error !)
-#define BOOLRULE(name_) static bool name_(kstr filename, kstr src, s32 ntoks, ks_token* toks, s32* ptoki)
+#define BOOLRULE(name_) static bool name_(kstr filename, kstr src, s32 ntoks, ks_tok* toks, s32* ptoki)
 
 // helper macro to match the given rule
 #define MATCH(name_) name_(filename, src, ntoks, toks, ptoki)
@@ -174,13 +174,23 @@
 // helper macro for the current token
 #define TOK (toks[TOKI])
 
+// helper macro to eat a token
+#define EAT() (toks[TOKI++])
+
+// last token
+#define LAST (toks[TOKI-1])
+
 // helper macro for testing whether the given token is equal to a C-style string
 #define TOK_EQ(tok_, cstr_) ((sizeof(cstr_) - 1) == (tok_)->lenb && strncmp(cstr_, src->data + (tok_)->posb, (sizeof(cstr_) - 1)) == 0)
 
 
 RULE(STMT);
 RULE(EXPR);
+RULE(ATOM);
 RULE(NAME);
+RULE(INT);
+RULE(FLOAT);
+RULE(STR);
 
 // skip irrelevant/extra tokens
 BOOLRULE(SKIP) {
@@ -206,6 +216,7 @@ BOOLRULE(N) {
 RULE(B) {
     if (TOK_EQ(TOK, "{")) {
         // '{' STMT* '}'
+        ks_tok tok = TOK;
         TOKI++;
         
         // collect statements
@@ -232,7 +243,7 @@ RULE(B) {
             }
         }
 
-        ks_ast res = ks_ast_newz(KS_AST_BLOCK, hb_n, hb);
+        ks_ast res = ks_ast_newz(tok, KS_AST_BLOCK, hb_n, hb);
         hb_n = 0;
         HBUF_CLEAR(hb);
         return res;
@@ -266,7 +277,7 @@ RULE(STMT) {
         // 'import' NAME N
         TOKI++;
 
-        ks_ast res = ks_ast_newz(KS_AST_IMPORT, 1, (kobj[]){ (kobj)MATCH(NAME) });
+        ks_ast res = ks_ast_newz(LAST, KS_AST_IMPORT, 1, (kobj[]){ (kobj)MATCH(NAME) });
         if (!res) {
             return NULL;
         }
@@ -278,14 +289,14 @@ RULE(STMT) {
         return res;
     } else if (TOK_EQ(TOK, "ret")) {
         // 'ret' EXPR? N
-        TOKI++;
+        ks_tok tok = EAT();
 
         if (MATCH(N)) {
             // just do none
-            return ks_ast_newz(KS_AST_RET, 0, NULL);
+            return ks_ast_newz(LAST, KS_AST_RET, 0, NULL);
         } else {
             // parse an expression to return
-            ks_ast res = ks_ast_newz(KS_AST_RET, 1, (kobj[]){ (kobj)MATCH(EXPR) });
+            ks_ast res = ks_ast_newz(LAST, KS_AST_RET, 1, (kobj[]){ (kobj)MATCH(EXPR) });
             if (!res) return NULL;
             
             // now, we need to match an end
@@ -298,14 +309,14 @@ RULE(STMT) {
         }
     } else if (TOK_EQ(TOK, "throw")) {
         // 'throw' EXPR? N
-        TOKI++;
+        ks_tok tok = EAT();
 
         if (MATCH(N)) {
             // just do none
-            return ks_ast_newz(KS_AST_THROW, 0, NULL);
+            return ks_ast_newz(tok, KS_AST_THROW, 0, NULL);
         } else {
             // parse an expression to return
-            ks_ast res = ks_ast_newz(KS_AST_THROW, 1, (kobj[]){ (kobj)MATCH(EXPR) });
+            ks_ast res = ks_ast_newz(tok, KS_AST_THROW, 1, (kobj[]){ (kobj)MATCH(EXPR) });
             if (!res) return NULL;
             
             // now, we need to match an end
@@ -368,7 +379,7 @@ RULE(STMT) {
             // number to take, on the first time also take the 'else' clause 
             int num = hb_n % 2 == 1 ? 3 : 2;
             hb_n -= num;
-            res = ks_ast_newz(KS_AST_IF, num, hb + hb_n);
+            res = ks_ast_newz(NULL, KS_AST_IF, num, hb + hb_n);
             if (!res) {
                 HBUF_CLEAR(hb);
                 return NULL;
@@ -396,6 +407,7 @@ RULE(STMT) {
         if (!res) {
             return NULL;
         }
+        return res;
 
         // should be followed by a newline or equivalent
         if (!MATCH(N)) {
@@ -407,31 +419,214 @@ RULE(STMT) {
     }
 }
 
+RULE(E10) {
+    return MATCH(ATOM);
+}
+
+RULE(E9) {
+    ks_ast res = MATCH(E10);
+    if (!res) return NULL;
+
+    while (true) {
+        switch (TOK->kind)
+        {
+        case KS_TOK_STAR:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_MUL, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E10) });
+            break;
+        case KS_TOK_SLASH:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_DIV, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E10) });
+            break;
+        case KS_TOK_SLASHSLASH:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_FLOORDIV, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E10) });
+            break;
+        case KS_TOK_PERC:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_MOD, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E10) });
+            break;
+        case KS_TOK_AT:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_MATMUL, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E10) });
+            break;
+
+        default:
+            return res;
+        }
+    }
+}
+
+RULE(E8) {
+    ks_ast res = MATCH(E9);
+    if (!res) return NULL;
+
+    while (true) {
+        switch (TOK->kind)
+        {
+        case KS_TOK_PLUS:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_ADD, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E9) });
+            break;
+        case KS_TOK_MINUS:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_SUB, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E9) });
+            break;
+
+        default:
+            return res;
+        }
+    }
+}
+
+RULE(E2) {
+    return MATCH(E8);
+}
+
+RULE(E1) {
+    ks_ast res = MATCH(E2);
+    if (!res) return NULL;
+
+    while (true) {
+        switch (TOK->kind)
+        {
+        case KS_TOK_EQ:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_EQ, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E2) });
+            break;
+        case KS_TOK_PLUSEQ:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_ADDEQ, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E2) });
+            break;
+        case KS_TOK_MINUSEQ:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_SUBEQ, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E2) });
+            break;
+
+        case KS_TOK_STAREQ:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_MULEQ, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E2) });
+            break;
+
+        case KS_TOK_SLASHEQ:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_DIVEQ, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E2) });
+            break;
+
+        case KS_TOK_PERCEQ:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_MODEQ, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E2) });
+            break;
+
+        case KS_TOK_UPEQ:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_POWEQ, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E2) });
+            break;
+        
+        case KS_TOK_ATEQ:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_MATMULEQ, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E2) });
+            break;
+        default:
+            return res;
+        }
+    }
+}
+
+RULE(E0) {
+    ks_ast res = MATCH(E1);
+    if (!res) return NULL;
+
+    while (true) {
+        u32 k = TOK->kind;
+        switch (TOK->kind)
+        {
+        case KS_TOK_PIPE:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_PIPE, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E1) });
+            break;
+        case KS_TOK_AND:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_AND, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E1) });
+            break;
+        
+        default:
+            return res;
+        }
+    }
+}
+
 RULE(EXPR) {
-    assert(false);
+    return MATCH(E0);
+    /*
+    if (TOK->kind == KS_TOK_NAME) {
+        return MATCH(NAME);
+    } else if (TOK->kind == KS_TOK_INT) {
+        return MATCH(INT);
+    } else {
+        printf("GOT: %i\n", TOK->kind);
+        assert(false);
+    }*/
+}
+
+RULE(ATOM) {
+    if (TOK->kind == KS_TOK_NAME) {
+        return MATCH(NAME);
+    } else if (TOK->kind == KS_TOK_INT) {
+        return MATCH(INT);
+    } else {
+        printf("GOT: %i\n", TOK->kind);
+        assert(false);
+    }
 }
 
 RULE(NAME) {
-    assert(false);
+    if (TOK->kind == KS_TOK_NAME) {
+        TOKI++;
+        return ks_ast_wrapx(LAST, KS_AST_NAME, (kobj)kstr_new(LAST->lenb, src->data + LAST->posb));
+    } else {
+        printf("GOT: %i\n", TOK->kind);
+        assert(false);
+    }
+}
+
+
+RULE(INT) {
+    if (TOK->kind == KS_TOK_INT) {
+        // TODO: parse
+        TOKI++;
+        kstr s = kstr_new(LAST->lenb, src->data + LAST->posb);
+        assert(s != NULL);
+        kint v = kint_new(s->data, 10);
+        assert(v != NULL);
+        KOBJ_DECREF(s);
+        ks_ast res = ks_ast_wrap(LAST, (kobj)v);
+        return res;
+    } else {
+        printf("GOT: %i\n", TOK->kind);
+        assert(false);
+    }
 }
 
 /// C API ///
 
 KATA_API ks_ast
-ks_parse(kstr filename, kstr src, s32 ntoks, ks_token* toks) {
-
+ks_parse(kstr filename, kstr src, s32* pntoks, ks_tok** ptoks) {
     // tokenize as needed
-    if (!toks || ntoks < 0) {
-        ntoks = ks_lex(filename, src, &toks);
-        if (ntoks < 0) {
+    if (*pntoks <= 0) {
+        *pntoks = ks_lex(filename, src, ptoks);
+        if (*pntoks < 0) {
             return NULL;
         }
     }
 
-
     // actually match rule
+    s32 ntoks = *pntoks;
+    ks_tok* toks = *ptoks;
+
     s32 toki = 0;
     s32* ptoki = &toki;
+
     ks_ast res = MATCH(STMT);
     if (!res) {
         return NULL;

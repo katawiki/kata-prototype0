@@ -52,6 +52,22 @@ kstr_new(ssize lenb, const char* data) {
     return obj;
 }
 
+KATA_API kstr
+kstr_fmt(const char* fmt, ...) {
+    kbuffer io = kbuffer_new(0, NULL);
+    if (!io) return NULL;
+    va_list ap;
+    va_start(ap, fmt);
+    ssize sz = kprintfv(io, fmt, ap);
+    va_end(ap);
+    if (sz < 0) {
+        KOBJ_DECREF(io);
+        return NULL;
+    }
+
+    return kbuffer_strz(io);
+}
+
 KATA_API void
 kinit_str() {
     ktype_init(Kstr, sizeof(struct kstr), "str", "String type");

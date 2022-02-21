@@ -104,5 +104,7 @@ kinit_float() {
     ktype_merge(Kfloat, KDICT_IKV(
         { "__del", kfunc_new(kfloat_del_, "float.__del(obj: float)", "") },
     ));
+
+    Kfloat->bfpos = offsetof(struct kfloat, val);
 }
 

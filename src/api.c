@@ -157,7 +157,11 @@ kthrowv(const char* filename, int line, const char* funcname, ktype tp, const ch
 
 
 }
-
+KATA_API kobj
+krrv(ssize res) {
+    // TODO: handle negatives?
+    return (kobj)kint_news(res);
+}
 
 KATA_API kobj
 kobj_make(ktype tp) {
@@ -262,6 +266,55 @@ KATA_API bool
 kobj_eq(kobj a, kobj b, bool* out) {
 
 }
+
+KATA_API void*
+kcheck(kobj obj, ktype tp) {
+    ktype ot = KOBJ_TYPE(obj);
+    if (ot != tp) {
+        assert(false);
+    }
+
+    return obj;
+}
+
+KATA_API kobj
+kop_add(kobj a, kobj b) {
+    ktype tpa = KOBJ_TYPE(a), tpb = KOBJ_TYPE(b);
+
+    if (tpa == Kstr) return kstr_fmt("%S%S", a, b);
+
+    if (tpa->is_int && tpb->is_int) {
+        bool doa, dob;
+        bf_t bfa, bfb;
+        if (!kbf_const(a, &bfa, &doa)) return NULL;
+        if (!kbf_const(b, &bfb, &dob)) {
+            if (doa) kbf_done(&bfa);
+            return NULL;
+        }
+
+        bf_t bfc;
+        if (!kbf_init(&bfc, NULL)) {
+            if (doa) kbf_done(&bfa);
+            if (dob) kbf_done(&bfb);
+            return NULL;
+        }
+
+        if (bf_add(&bfc, &bfa, &bfb, BF_PREC_INF, BF_RNDF) & (~BF_ST_INEXACT)) {
+            if (doa) kbf_done(&bfa);
+            if (dob) kbf_done(&bfb);
+            kbf_done(&bfc);
+            return NULL;
+        }
+
+        if (doa) kbf_done(&bfa);
+        if (dob) kbf_done(&bfb);
+
+        return (kobj)kint_newz(&bfc);
+    }
+
+    assert(false);
+}
+
 
 KATA_API kobj
 kcall(kobj fn, usize nargs, kobj* vargs) {
@@ -869,16 +922,24 @@ kprintfv(kobj io, const char* fmt, va_list args) {
                 sz = kwriteu(io, val, 10, width);
                 if (sz < 0) return sz;
                 rsz += sz;
-            } else if (c == 's') {
+            } else if (c == 'v') {
                 s64 val = va_arg(args, s64);
                 sz = kwrites(io, val, 10, width);
                 if (sz < 0) return sz;
                 rsz += sz;
+
             } else if (c == 'f') {
                 f64 val = va_arg(args, f64);
                 sz = kwritef(io, val, 10, width, prec);
                 if (sz < 0) return sz;
                 rsz += sz;
+
+            } else if (c == 's') {
+                const char* val = va_arg(args, const char*);
+                sz = kwrite(io, (usize)strlen(val), val);
+                if (sz < 0) return sz;
+                rsz += sz;
+
             } else if (c == 'p') {
                 void* val = va_arg(args, void*);
                 sz = kwrite(io, 2, "0x");
@@ -933,7 +994,34 @@ kprintfv(kobj io, const char* fmt, va_list args) {
                 sz = kwriteR(io, val);
                 if (sz < 0) return sz;
                 rsz += sz;
+            } else if (c == 'J') {
+                ktuple val = va_arg(args, void*);
+                assert(KOBJ_TYPE(val) == Ktuple);
 
+                int ii;
+                for (ii = 0; ii < val->len; ++ii) {
+                    if (ii > 0) {
+                        sz = kwrite(io, 2, ", ");
+                        if (sz < 0) return sz;
+                        rsz += sz;
+                    }
+
+                    sz = kwriteR(io, val->data[ii]);
+                    if (sz < 0) return sz;
+                    rsz += sz;
+                }
+
+            } else if (c == 'Y') {
+                kobj val = va_arg(args, void*);
+                if (val != NULL) {
+                    sz = kwrite(io, 2, ", ");
+                    if (sz < 0) return sz;
+                    rsz += sz;
+                
+                    sz = kwriteR(io, val);
+                    if (sz < 0) return sz;
+                    rsz += sz;
+                }
             } else {
                 fprintf(stderr, "\nERROR: invalid C-style format string: %s\n", ofmt);
                 kexit(1);

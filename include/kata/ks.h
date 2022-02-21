@@ -19,134 +19,138 @@
 enum {
 
     // end-of-file
-    KS_TOKEN_EOF       = 0,
+    KS_TOK_EOF       = 0,
 
     // ignorable line comment '# ...*'
-    KS_TOKEN_COMMENT,
+    KS_TOK_COMMENT,
 
     // arbitrary precision integer constant
-    KS_TOKEN_INT,
+    KS_TOK_INT,
     // arbitrary precision floating point constant
-    KS_TOKEN_FLOAT,
+    KS_TOK_FLOAT,
     // string literal, like "hello, world"
-    KS_TOKEN_STR,
+    KS_TOK_STR,
 
     // name reference, typically to a variable, function, or type
     // can also be keyword
-    KS_TOKEN_NAME,
+    KS_TOK_NAME,
 
     // string interpolation, like $"hey {name} {3+5}" == "hey user 8"
-    KS_TOKEN_STR_CASH,
+    KS_TOK_STR_CASH,
 
     // (
-    KS_TOKEN_LPAR,
+    KS_TOK_LPAR,
     // )
-    KS_TOKEN_RPAR,
+    KS_TOK_RPAR,
     // {
-    KS_TOKEN_LBRC,
+    KS_TOK_LBRC,
     // }
-    KS_TOKEN_RBRC,
+    KS_TOK_RBRC,
     // [
-    KS_TOKEN_LBRK,
+    KS_TOK_LBRK,
     // ]
-    KS_TOKEN_RBRK,
+    KS_TOK_RBRK,
     // <-
-    KS_TOKEN_LARW,
+    KS_TOK_LARW,
     // ->
-    KS_TOKEN_RARW,
+    KS_TOK_RARW,
 
     // .
-    KS_TOKEN_DOT,
+    KS_TOK_DOT,
     // ,
-    KS_TOKEN_COMMA,
+    KS_TOK_COMMA,
     // :
-    KS_TOKEN_COLON,
+    KS_TOK_COLON,
     // ;
-    KS_TOKEN_SEMI,
+    KS_TOK_SEMI,
 
     // +
-    KS_TOKEN_PLUS,
+    KS_TOK_PLUS,
     // ++
-    KS_TOKEN_PLUSPLUS,
+    KS_TOK_PLUSPLUS,
     // -
-    KS_TOKEN_MINUS,
+    KS_TOK_MINUS,
     // --
-    KS_TOKEN_MINUSMINUS,
+    KS_TOK_MINUSMINUS,
     // *
-    KS_TOKEN_STAR,
+    KS_TOK_STAR,
     // **
-    KS_TOKEN_STARSTAR,
+    KS_TOK_STARSTAR,
     // /
-    KS_TOKEN_SLASH,
+    KS_TOK_SLASH,
     // //
-    KS_TOKEN_SLASHSLASH,
+    KS_TOK_SLASHSLASH,
     // %
-    KS_TOKEN_PERC,
+    KS_TOK_PERC,
     // %%
-    KS_TOKEN_PERCPERC,
+    KS_TOK_PERCPERC,
     // ^
-    KS_TOKEN_UP,
+    KS_TOK_UP,
     // ~
-    KS_TOKEN_SQIG,
+    KS_TOK_SQIG,
     // @
-    KS_TOKEN_AT,
+    KS_TOK_AT,
     // !
-    KS_TOKEN_BANG,
+    KS_TOK_BANG,
     // ?
-    KS_TOKEN_QUES,
+    KS_TOK_QUES,
     // ??
-    KS_TOKEN_QUESQUES,
+    KS_TOK_QUESQUES,
     // |
-    KS_TOKEN_PIPE,
+    KS_TOK_PIPE,
     // ||
-    KS_TOKEN_PIPEPIPE,
+    KS_TOK_PIPEPIPE,
     // &
-    KS_TOKEN_AMP,
+    KS_TOK_AND,
     // &&
-    KS_TOKEN_AMPAMP,
+    KS_TOK_AMPAMP,
     // <
-    KS_TOKEN_LT,
+    KS_TOK_LT,
     // <<
-    KS_TOKEN_LTLT,
+    KS_TOK_LTLT,
     // >
-    KS_TOKEN_GT,
+    KS_TOK_GT,
     // >>
-    KS_TOKEN_GTGT,
+    KS_TOK_GTGT,
 
     // =
-    KS_TOKEN_EQ,
+    KS_TOK_EQ,
     // ==
-    KS_TOKEN_EQEQ,
+    KS_TOK_EQEQ,
     // :=
-    KS_TOKEN_DEFEQ,
+    KS_TOK_DEFEQ,
     // +=
-    KS_TOKEN_PLUSEQ,
+    KS_TOK_PLUSEQ,
     // -=
-    KS_TOKEN_MINUSEQ,
+    KS_TOK_MINUSEQ,
     // *=
-    KS_TOKEN_STAREQ,
+    KS_TOK_STAREQ,
+    // *=
+    KS_TOK_SLASHEQ,
+    // //=
+    KS_TOK_SLASHSLASHEQ,
     // %=
-    KS_TOKEN_PERCEQ,
+    KS_TOK_PERCEQ,
     // ^=
-    KS_TOKEN_UPEQ,
+    KS_TOK_UPEQ,
     // ~=
-    KS_TOKEN_SQIGEQ,
+    KS_TOK_SQIGEQ,
     // @=
-    KS_TOKEN_ATEQ,
+    KS_TOK_ATEQ,
     // !=
-    KS_TOKEN_BANGEQ,
+    KS_TOK_BANGEQ,
     // ?=
-    KS_TOKEN_QUESEQ,
+    KS_TOK_QUESEQ,
     // <=
-    KS_TOKEN_LTEQ,
+    KS_TOK_LTEQ,
     // >=
-    KS_TOKEN_GTEQ,
+    KS_TOK_GTEQ,
 };
 
 // individual token 
-typedef struct ks_token {
+typedef struct ks_tok {
 
-    // the kind of token, see 'KS_TOKEN_*'
+    // the kind of token, see 'KS_TOK_*'
     s32 kind;
 
     // position and length, in bytes of the source code
@@ -155,10 +159,10 @@ typedef struct ks_token {
     // line, column, and length in characters of the source code
     s32 line, col, lenc;
 
-}* ks_token;
+}* ks_tok;
 
-KATA_API ks_token
-ks_token_new(s32 kind, s32 posb, s32 lenb, s32 line, s32 col, s32 lenc);
+KATA_API ks_tok
+ks_tok_new(s32 kind, s32 posb, s32 lenb, s32 line, s32 col, s32 lenc);
 
 // describes the kind/type of an AST
 enum {
@@ -207,8 +211,88 @@ enum {
     // sub := (cond: ks.ast, bodyT: ks.ast, bodyF: ks.ast = [], )
     KS_AST_FOR,
 
+    // +
+    KS_AST_ADD,
+    // ++
+    KS_AST_ADDADD,
+    // -
+    KS_AST_SUB,
+    // --
+    KS_AST_SUBSUB,
+    // *
+    KS_AST_MUL,
+    // **
+    // TODO: use this?
+    _KS_AST_MULMUL,
+    // /
+    KS_AST_DIV,
+    // //
+    KS_AST_FLOORDIV,
+    // %
+    KS_AST_MOD,
+    // %%
+    KS_AST_MODMOD,
+    // ^
+    KS_AST_POW,
+    // ~
+    KS_AST_SQIG,
+    // @
+    KS_AST_MATMUL,
+    // !
+    KS_AST_NOT,
+    // ?
+    KS_AST_QUES,
+    // ??
+    KS_AST_QUESQUES,
+    // |
+    KS_AST_PIPE,
+    // ||
+    KS_AST_PIPEPIPE,
+    // &
+    KS_AST_AND,
+    // &&
+    KS_AST_ANDAND,
+    // <
+    KS_AST_LT,
+    // <<
+    KS_AST_LTLT,
+    // >
+    KS_AST_GT,
+    // >>
+    KS_AST_GTGT,
+    // <=
+    KS_AST_LE,
+    // >=
+    KS_AST_GE,
 
-
+    // =
+    KS_AST_EQ,
+    // ==
+    KS_AST_EQEQ,
+    // :=
+    KS_AST_DEFEQ,
+    // +=
+    KS_AST_ADDEQ,
+    // -=
+    KS_AST_SUBEQ,
+    // *=
+    KS_AST_MULEQ,
+    // /=
+    KS_AST_DIVEQ,
+    // //=
+    KS_AST_FLOORDIVEQ,
+    // %=
+    KS_AST_MODEQ,
+    // ^=
+    KS_AST_POWEQ,
+    // ~=
+    KS_AST_SQIGEQ,
+    // @=
+    KS_AST_MATMULEQ,
+    // !=
+    KS_AST_NOTEQ,
+    // ?=
+    KS_AST_QUESEQ,
 
 
 };
@@ -217,25 +301,39 @@ enum {
 typedef struct ks_ast {
 
     // the kind of node, see 'KS_AST_*'
-    s32 kind;
+    u32 kind;
 
-    // sub nodes of the AST (this depends on the kind)
-    ktuple sub;
+    // token node
+    ks_tok tok;
+
+    // sub nodes of the AST (this depends on the kind, is typically
+    //   a constant or a tuple)
+    //ktuple sub;
+    kobj sub;
 
 }* ks_ast;
 
-// create a new AST node
+// create a new AST node, with a tuple as the sub node
 KATA_API ks_ast
-ks_ast_new(s32 kind, int nsub, kobj* sub);
+ks_ast_new(ks_tok tok, u32 kind, int nsub, kobj* sub);
 
 // create a new AST node, absorbing references to 'sub'
 // NOTE: this always removes the references to 'sub', and handles the case where
 //         some are NULL (if any NULLs are found, a reference is removed from others
 //         and no result is returned)
 KATA_API ks_ast
-ks_ast_newz(s32 kind, int nsub, kobj* sub);
+ks_ast_newz(ks_tok tok, u32 kind, int nsub, kobj* sub);
 
+// create a new AST node wrapping a constant
+KATA_API ks_ast
+ks_ast_wrap(ks_tok tok, kobj sub);
+// create a new AST node wrapping a constant
+KATA_API ks_ast
+ks_ast_wrapx(ks_tok tok, u32 kind, kobj sub);
 
+// return a constant reference to a string for the given AST kind
+KATA_API const char*
+ks_ast_kindname(u32 kind);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,19 +345,18 @@ ks_ast_newz(s32 kind, int nsub, kobj* sub);
 // if you want a list of the tokens, call 'klist_newz(len, toks)', and then 'kmem_free(toks)'
 //   which will transfer the references
 KATA_API s32
-ks_lex(kstr filename, kstr src, ks_token** ptoks);
+ks_lex(kstr filename, kstr src, ks_tok** ptoks);
 
 // parse a KataScript file contents into an AST
-// NOTE: you can pass 'toks==NULL' and 'ntoks==-1' to auto-lex the input sources
 KATA_API ks_ast
-ks_parse(kstr filename, kstr src, s32 ntoks, ks_token* toks);
+ks_parse(kstr filename, kstr src, s32* pntoks, ks_tok** ptoks);
 
 
 ////////////////////////////////////////////////////////////////////////////////
 
 KATA_API ktype
 Ks_ast,
-Ks_token
+Ks_tok
 ;
 
 #endif // KATA_KS_H

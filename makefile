@@ -27,13 +27,13 @@ SRC_C       := $(wildcard src/*.c)
 SRC_C       += $(wildcard src/types/*.c)
 
 # add modules
-SRC_C       += $(wildcard src/os/*.c)
 SRC_C       += $(wildcard src/bf/*.c)
 
-SRC_C       += $(wildcard src/ks/*.c)
-
+# TODO; should 'mem' be included in 'os'?
+SRC_C       += $(wildcard src/os/*.c)
 SRC_C       += $(wildcard src/mem/*.c)
-SRC_C       += $(wildcard src/io/*.c)
+SRC_C       += $(wildcard src/vm/*.c)
+SRC_C       += $(wildcard src/ks/*.c)
 
 # C headers
 SRC_H       := $(wildcard include/kata/*.h)
