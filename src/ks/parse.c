@@ -187,6 +187,7 @@
 RULE(STMT);
 RULE(EXPR);
 RULE(ATOM);
+RULE(ARG);
 RULE(NAME);
 RULE(INT);
 RULE(FLOAT);
@@ -419,8 +420,96 @@ RULE(STMT) {
     }
 }
 
-RULE(E10) {
+RULE(ARG) {
+    return MATCH(EXPR);
+}
+
+RULE(E13) {
     return MATCH(ATOM);
+}
+
+RULE(E12) {
+    ks_ast res = MATCH(E13);
+    if (!res) return NULL;
+
+    while (true) {
+        switch (TOK->kind)
+        {
+        case KS_TOK_DOT:
+            // '.' NAME
+            TOKI++;
+            if (TOK->kind != KS_TOK_NAME) {
+                // TODO: error message
+                assert(false);
+                KOBJ_DECREF(res);
+                return NULL;
+            }
+            res = ks_ast_newz(LAST, KS_AST_ATTR, 2, (kobj[]){ (kobj)res, (kobj)kstr_new(LAST->lenb, src->data + LAST->posb) });
+            TOKI++;
+            break;
+        case KS_TOK_LPAR:
+            // '(' (ARG (',' ARG)*)? ')'
+            TOKI++;
+
+            // push all arguments
+            HBUF_MAKE(hb, 8);
+
+            // start by pushing the current result as the function
+            HBUF_PUSH(hb, res);
+
+            while (TOK->kind != KS_TOK_RPAR) {
+                ks_ast arg = MATCH(ARG);
+                if (!arg) {
+                    HBUF_CLEAR(hb);
+                    return NULL;
+                }
+                HBUF_PUSH(hb, arg);
+
+                // check for continuation
+                if (TOK->kind == KS_TOK_COMMA) {
+                    TOKI++;
+                } else {
+                    break;
+                }
+            }
+
+            if (TOK->kind != KS_TOK_RPAR) {
+                assert(false);
+                return NULL;
+            }
+            TOKI++;
+
+            // now, construct tree
+            res = ks_ast_newz(LAST, KS_AST_CALL, hb_n, hb);
+            hb_n = 0;
+            HBUF_CLEAR(hb);
+            return res;
+
+        default:
+            return res;
+        }
+    }
+}
+
+RULE(E11) {
+    return MATCH(E12);
+}
+
+RULE(E10) {
+    ks_ast res = MATCH(E11);
+    if (!res) return NULL;
+
+    while (true) {
+        switch (TOK->kind)
+        {
+        case KS_TOK_UP:
+            TOKI++;
+            res = ks_ast_newz(LAST, KS_AST_POW, 2, (kobj[]){ (kobj)res, (kobj)MATCH(E10) });
+            break;
+        default:
+            return res;
+        }
+    }
 }
 
 RULE(E9) {
@@ -574,6 +663,8 @@ RULE(ATOM) {
         return MATCH(NAME);
     } else if (TOK->kind == KS_TOK_INT) {
         return MATCH(INT);
+    } else if (TOK->kind == KS_TOK_FLOAT) {
+        return MATCH(FLOAT);
     } else {
         printf("GOT: %i\n", TOK->kind);
         assert(false);
@@ -590,7 +681,6 @@ RULE(NAME) {
     }
 }
 
-
 RULE(INT) {
     if (TOK->kind == KS_TOK_INT) {
         // TODO: parse
@@ -598,6 +688,23 @@ RULE(INT) {
         kstr s = kstr_new(LAST->lenb, src->data + LAST->posb);
         assert(s != NULL);
         kint v = kint_new(s->data, 10);
+        assert(v != NULL);
+        KOBJ_DECREF(s);
+        ks_ast res = ks_ast_wrap(LAST, (kobj)v);
+        return res;
+    } else {
+        printf("GOT: %i\n", TOK->kind);
+        assert(false);
+    }
+}
+
+RULE(FLOAT) {
+    if (TOK->kind == KS_TOK_FLOAT) {
+        // TODO: parse
+        TOKI++;
+        kstr s = kstr_new(LAST->lenb, src->data + LAST->posb);
+        assert(s != NULL);
+        kfloat v = kfloat_new(s->data, 10, -1);
         assert(v != NULL);
         KOBJ_DECREF(s);
         ks_ast res = ks_ast_wrap(LAST, (kobj)v);

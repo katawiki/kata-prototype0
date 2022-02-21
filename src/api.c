@@ -15,26 +15,7 @@ Ksc_new,
 Ksc_del 
 ;
 
-bf_context_t
-Kbf_ctx;
 
-// internal allocation function for libbf
-static void*
-Kbf_ctx_realloc_(void *opaque, void *ptr, size_t sz) {
-    if (!sz) {
-        // free pointer
-        kmem_free(ptr);
-        return NULL;
-    }
-
-    void* res = ptr;
-    if (!kmem_grow(&res, sz)){ 
-        fprintf(stderr, "libbf: out of memory\n");
-        kexit(KENO_ERR_OOM);
-        return NULL;
-    }
-    return res;
-}
 
 // write UTF-8 string data, escaped
 static ssize
@@ -99,7 +80,7 @@ kinit(bool fail_on_err) {
     Ksc_new = kstr_new(-1, "__new");
     Ksc_del = kstr_new(-1, "__del");
 
-    bf_context_init(&Kbf_ctx, Kbf_ctx_realloc_, NULL);
+    bf_context_init(&kbf_ctx, kbf_realloc, NULL);
 
     kinit_data();
 
@@ -277,44 +258,6 @@ kcheck(kobj obj, ktype tp) {
     return obj;
 }
 
-KATA_API kobj
-kop_add(kobj a, kobj b) {
-    ktype tpa = KOBJ_TYPE(a), tpb = KOBJ_TYPE(b);
-
-    if (tpa == Kstr) return kstr_fmt("%S%S", a, b);
-
-    if (tpa->is_int && tpb->is_int) {
-        bool doa, dob;
-        bf_t bfa, bfb;
-        if (!kbf_const(a, &bfa, &doa)) return NULL;
-        if (!kbf_const(b, &bfb, &dob)) {
-            if (doa) kbf_done(&bfa);
-            return NULL;
-        }
-
-        bf_t bfc;
-        if (!kbf_init(&bfc, NULL)) {
-            if (doa) kbf_done(&bfa);
-            if (dob) kbf_done(&bfb);
-            return NULL;
-        }
-
-        if (bf_add(&bfc, &bfa, &bfb, BF_PREC_INF, BF_RNDF) & (~BF_ST_INEXACT)) {
-            if (doa) kbf_done(&bfa);
-            if (dob) kbf_done(&bfb);
-            kbf_done(&bfc);
-            return NULL;
-        }
-
-        if (doa) kbf_done(&bfa);
-        if (dob) kbf_done(&bfb);
-
-        return (kobj)kint_newz(&bfc);
-    }
-
-    assert(false);
-}
-
 
 KATA_API kobj
 kcall(kobj fn, usize nargs, kobj* vargs) {
@@ -323,9 +266,9 @@ kcall(kobj fn, usize nargs, kobj* vargs) {
     kthread thd = kthread_get();
 
     // enter the function
-    if (kthread_push_frame(thd, fn, nargs, vargs) < 0) {
-        return NULL;
-    }
+    //if (kthread_push_frame(thd, fn, nargs, vargs) < 0) {
+    //    return NULL;
+    //}
 
     // run the function, depending on the type
     // NOTE: these are some hard-coded common cases
@@ -339,6 +282,8 @@ kcall(kobj fn, usize nargs, kobj* vargs) {
             kexit(-1);
             return NULL;
         }
+    } else {
+        assert(false);
     }
 
     return res;

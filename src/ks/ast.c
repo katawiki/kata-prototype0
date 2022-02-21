@@ -73,6 +73,12 @@ ks_ast_kindname(u32 kind) {
         case KS_AST_VAL: return "ks.ast.VAL";
         case KS_AST_NAME: return "ks.ast.NAME";
         case KS_AST_ADD: return "ks.ast.ADD";
+        case KS_AST_SUB: return "ks.ast.SUB";
+        case KS_AST_MUL: return "ks.ast.MUL";
+        case KS_AST_DIV: return "ks.ast.DIV";
+        case KS_AST_FLOORDIV: return "ks.ast.FDIV";
+        case KS_AST_POW: return "ks.ast.POW";
+        case KS_AST_CALL: return "ks.ast.CALL";
     }
 
     return "ks.ast.UNKNOWN";
@@ -98,16 +104,18 @@ static KCFUNC(ks_ast_repr_) {
         // TODO: should VAL even report that its an AST?
         //case KS_AST_VAL: return krrv(kprintf(io, "ks.ast(%R)", obj->sub));
         case KS_AST_VAL: return krrv(kprintf(io, "%R", obj->sub));
-        case KS_AST_NAME: return krrv(kprintf(io, "ks.ast.name(%R)", obj->sub));
-        case KS_AST_ADD: return krrv(kprintf(io, "ks.ast.add(%J)", obj->sub));
-        case KS_AST_MUL: return krrv(kprintf(io, "ks.ast.mul(%J)", obj->sub));
+        case KS_AST_NAME: return krrv(kprintf(io, "ks.name(%R)", obj->sub));
+        case KS_AST_ADD: return krrv(kprintf(io, "ks.add(%J)", obj->sub));
+        case KS_AST_SUB: return krrv(kprintf(io, "ks.sub(%J)", obj->sub));
+        case KS_AST_MUL: return krrv(kprintf(io, "ks.mul(%J)", obj->sub));
+        case KS_AST_DIV: return krrv(kprintf(io, "ks.div(%J)", obj->sub));
+        case KS_AST_POW: return krrv(kprintf(io, "ks.pow(%J)", obj->sub));
+        case KS_AST_CALL: return krrv(kprintf(io, "ks.call(%J)", obj->sub));
     }
 
     return krrv(kprintf(io, "ks.ast(%s, %R)", ks_ast_kindname(obj->kind), obj->sub));
 
 }
-
-
 
 KATA_API void
 kinit_ks_ast() {

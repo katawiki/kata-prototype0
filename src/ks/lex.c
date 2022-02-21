@@ -1,6 +1,6 @@
 /* src/ks/lex.c - ks_lex() implementation, a custom lexer
  *
- *
+ * TODO: replace this all with a regex solution?
  *
  * ORIGINAL SOURCES:
  * https://github.com/ChemicalDevelopment/kscript/blob/main/src/lexer.c
@@ -56,7 +56,6 @@ myis_name(kucp c) {
     return false;
 }
 
-
 /// C API ///
 
 KATA_API s32
@@ -94,7 +93,6 @@ ks_lex(kstr filename, kstr src, ks_tok** ptoks) {
         } \
         (*ptoks)[res++] = tok; \
     } while (0)
-
 
 
     // TODO: unicode?
@@ -143,6 +141,7 @@ ks_lex(kstr filename, kstr src, ks_tok** ptoks) {
             // if we hit '.', then we have a float
             bool is_float = CUR == '.';
             if (is_float) {
+                ADV();
                 // skip fractional component
                 while (myis_digit(CUR, base)) {
                     ADV();
@@ -190,11 +189,14 @@ ks_lex(kstr filename, kstr src, ks_tok** ptoks) {
             EMIT(kind_); \
         }
 
+        CASE(KS_TOK_LPAR, "(")
+        CASE(KS_TOK_RPAR, ")")
+
         CASE(KS_TOK_PLUS, "+")
         CASE(KS_TOK_MINUS, "-")
         CASE(KS_TOK_STAR, "*")
         CASE(KS_TOK_SLASH, "/")
-
+        CASE(KS_TOK_UP, "^")
 
 
 

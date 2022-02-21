@@ -411,6 +411,11 @@ kfloat_news(s64 val);
 KATA_API kfloat
 kfloat_newf(f64 val);
 
+// take and absorb a valid 'bf_t' value
+KATA_API kfloat
+kfloat_newz(bf_t* val);
+
+
 // use current default precision
 #define KFLOAT_PREC_AUTO  (0)
 
@@ -827,9 +832,6 @@ Ksc_new, // '__new'
 Ksc_del  // '__del'
 ;
 
-// context for all of libbf
-KATA_API bf_context_t
-Kbf_ctx;
 
 // digits (only valid for 0<=digit<16)
 KATA_API const char* Kdigits;
@@ -1008,6 +1010,24 @@ kcheck(kobj obj, ktype tp);
 // compute 'a + b'
 KATA_API kobj
 kop_add(kobj a, kobj b);
+
+// compute 'a * b'
+KATA_API kobj
+kop_mul(kobj a, kobj b);
+
+// compute 'a / b'
+KATA_API kobj
+kop_div(kobj a, kobj b);
+
+// compute 'a // b'
+KATA_API kobj
+kop_fdiv(kobj a, kobj b);
+
+// compute 'a ^ b'
+KATA_API kobj
+kop_pow(kobj a, kobj b);
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

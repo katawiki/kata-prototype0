@@ -18,7 +18,6 @@ kthread_get() {
 
 KATA_API bool
 kthread_push_frame(struct kthread* obj, kobj fn, usize nargs, kobj* args) {
-
 }
 
 KATA_API bool

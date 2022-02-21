@@ -17,7 +17,6 @@ kint_new(const char* val, s32 base) {
 
     // init and set to string
     kbf_init(&obj->val, NULL);
-
     const char* next = NULL;
     int rc = bf_atof(&obj->val, val, &next, base, BF_PREC_INF, 0);
     if (rc != 0) {
@@ -38,7 +37,7 @@ kint_newu(u64 val) {
     if (!obj) return NULL;
 
     // init and set to string
-    bf_init(&Kbf_ctx, &obj->val);
+    kbf_init(&obj->val, NULL);
     if (bf_set_ui(&obj->val, val) != 0) {
         kexit(-1);
         return NULL;
@@ -123,8 +122,10 @@ kinit_int() {
         { "__del", kfunc_new(kint_del_, "int.__del(obj: int)", "") },
     ));
 
-    Kint->bfpos = offsetof(struct kint, val);
     Kint->is_int = true;
+    Kint->is_float = true;
+
+    Kint->bfpos = offsetof(struct kint, val);
 
 }
 

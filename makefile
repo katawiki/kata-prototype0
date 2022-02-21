@@ -11,6 +11,8 @@
 ### Config ###
 
 # TODO: rpath?
+#CFLAGS      += -Os
+#CFLAGS      += -Og
 CFLAGS      += -O2
 #CFLAGS      += -Ofast -march=native
 LDFLAGS     += -Llib

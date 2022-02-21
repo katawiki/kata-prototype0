@@ -174,6 +174,10 @@ enum {
     // sub := (val: any, )
     KS_AST_VAL,
 
+    // attribute reference
+    // sub := (val: any, name: str)
+    KS_AST_ATTR,
+
     // a function call, indicated as:
     // sub[0](*sub[1:]) = sub[0](sub[1], sub[2], ...)
     KS_AST_CALL,

@@ -64,7 +64,7 @@ klist_done(struct klist* obj) {
 
 KATA_API bool
 klist_push(struct klist* obj, kobj val) {
-    return klist_pushx(obj, 1, &val);
+    return klist_pushx(obj, 1, &val) >= 0;
 }
 
 KATA_API keno

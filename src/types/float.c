@@ -26,7 +26,9 @@ kfloat_new(const char* val, s32 base, s64 prec) {
     }
 
     // init and set to string
-    bf_init(&Kbf_ctx, &obj->val);
+    if (!kbf_init(&obj->val, NULL)) {
+        return NULL;
+    }
     const char* next = NULL;
     //int rc = bf_atof(&obj->val, val, &next, base, prec, BF_RNDF);
     slimb_t vexp = 0;
@@ -45,7 +47,9 @@ kfloat_newu(u64 val) {
     if (!obj) return NULL;
 
     // init and set to string
-    bf_init(&Kbf_ctx, &obj->val);
+    if (!kbf_init(&obj->val, NULL)) {
+        return NULL;
+    }
     if (bf_set_ui(&obj->val, val) != 0) {
         kexit(-1);
         return NULL;
@@ -60,7 +64,9 @@ kfloat_news(s64 val) {
     if (!obj) return NULL;
 
     // init and set to string
-    bf_init(&Kbf_ctx, &obj->val);
+    if (!kbf_init(&obj->val, NULL)) {
+        return NULL;
+    }
     if (bf_set_si(&obj->val, val) != 0) {
         kexit(-1);
         return NULL;
@@ -77,12 +83,24 @@ kfloat_newf(f64 val) {
     if (!obj) return NULL;
 
     // init and set to double (f64)
-    bf_init(&Kbf_ctx, &obj->val);
+    if (!kbf_init(&obj->val, NULL)) {
+        return NULL;
+    }
     if (bf_set_float64(&obj->val, val) != 0) {
         kexit(-1);
         return NULL;
     }
     
+    return obj;
+}
+
+KATA_API kfloat
+kfloat_newz(bf_t* val) {
+    kfloat obj = kobj_make(Kfloat);
+    if (!obj) return NULL;
+
+    obj->val = *val;
+
     return obj;
 }
 
@@ -105,6 +123,9 @@ kinit_float() {
         { "__del", kfunc_new(kfloat_del_, "float.__del(obj: float)", "") },
     ));
 
+    Kfloat->is_float = true;
+
     Kfloat->bfpos = offsetof(struct kfloat, val);
+
 }
 
