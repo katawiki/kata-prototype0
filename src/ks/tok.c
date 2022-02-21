@@ -1,4 +1,4 @@
-/* src/ks/ast.c - ks_ast implementation
+/* src/ks/tok.c - ks_tok implementation
  *
  * @author: Cade Brown <me@cade.site>
  */

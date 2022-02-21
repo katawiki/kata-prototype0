@@ -211,11 +211,17 @@ ks_lex(kstr filename, kstr src, ks_tok** ptoks) {
     s32 i_start = i, line_start = line, col_start = col;
     EMIT(KS_TOK_EOF);
 
+    // debug print out them
+    for (i = 0; i < res; ++i) {
+        kprintf(Kos_stderr, "  toks[%i]: %R\n", (int)i, (*ptoks)[i]);
+    }
 
+    /*
     // debug print out them
     for (i = 0; i < res; ++i) {
         fprintf(stderr, "  toks[%i]: posb=%i, lenb=%i\n", (int)i, (int)(*ptoks)[i]->posb, (int)(*ptoks)[i]->lenb);
     }
+    */
 
     return res;
 }
