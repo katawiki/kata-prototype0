@@ -26,11 +26,11 @@ int main(int argc, char** argv) {
     ks_tok* toks = NULL;
     ks_ast prog = ks_parse(filename, src, &ntoks, &toks);
     assert(prog != NULL);
-    assert(kprintf(Kos_stdout, "ks_parse(filename, src):\n%R\n", prog) >= 0);
+    assert(kprintf(Kos_stdout, "ks.parse(filename, src):\n%R\n", prog) >= 0);
 
     kobj res = kvm_eval(NULL, NULL, prog);
     assert(res != NULL);
-    assert(kprintf(Kos_stdout, "kvm_eval(prog): %R\n", res) >= 0);
+    assert(kprintf(Kos_stdout, "kvm.eval(prog): %R\n", res) >= 0);
     KOBJ_DECREF(res);
 
     KOBJ_DECREF(prog);
