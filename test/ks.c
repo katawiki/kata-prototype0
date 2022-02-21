@@ -15,7 +15,7 @@ int main(int argc, char** argv) {
 
     kstr filename = kstr_new(-1, "<test>");
     //kstr src = kstr_new(-1, "1 * 2 + a * b");
-    kstr src = kstr_new(-1, "1 + 2");
+    kstr src = kstr_new(-1, "1 + 2 + 3 + 4");
     assert(kprintf(Kos_stdout, "filename: %R\n", filename) >= 0);
     assert(kprintf(Kos_stdout, "src: %R\n", src) >= 0);
 
